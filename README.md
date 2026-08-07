@@ -1,6 +1,6 @@
 # Balloon Sequence
 
-Protótipo em React Native **0.79.2** que reproduz a interação do vídeo de referência:
+Protótipo em React Native **0.79.2** :
 
 - ao tocar em um balão, ele sobe com uma leve oscilação e sai da tela;
 - uma ficha numerada aparece no lugar do balão;
