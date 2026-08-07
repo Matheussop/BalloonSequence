@@ -31,5 +31,15 @@ target 'BalloonSequence' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # fmt 11 bundled with RN 0.79 hits a consteval regression on Apple Clang 17
+    # (Xcode 26). fmt does not require C++20, so compile only this pod as C++17.
+    installer.pods_project.targets.each do |target|
+      next unless target.name == 'fmt'
+
+      target.build_configurations.each do |build_config|
+        build_config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
+      end
+    end
   end
 end
