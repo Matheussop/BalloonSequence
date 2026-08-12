@@ -212,13 +212,18 @@ Enquanto o texto é inválido:
 
 Quando o primeiro balão é tocado, `hasStarted` passa para `true` e o campo fica bloqueado. Isso impede que os números ou seus destinos mudem durante uma animação em andamento.
 
-Os números válidos são armazenados no estado `numbers`. A posição do array corresponde ao identificador do balão:
+Os números válidos são armazenados no estado `numbers`. Outro estado, `balloonOrder`, contém uma permutação dos índices de `numbers`. Para cada balão, o mesmo `sourceIndex` define tanto o conteúdo exibido quanto o destino final:
 
-```ts
-value={numbers[item.id - 1]}
+```tsx
+const sourceIndex = balloonOrder[item.id - 1];
+
+value={numbers[sourceIndex]}
+finalIndex={sourceIndex}
 ```
 
-Isso significa que o balão 1 utiliza o primeiro número digitado, o balão 2 utiliza o segundo e assim por diante.
+Assim, o balão 1 não precisa mostrar o primeiro número digitado. Ele pode receber qualquer posição da entrada, mas sua ficha conserva a informação de qual era essa posição.
+
+`createShuffledOrder` usa Fisher–Yates para embaralhar os índices. Se números repetidos fizerem o resultado visual coincidir por acaso com a entrada, a função troca duas posições que contêm valores diferentes. A única exceção inevitável acontece quando os seis valores são iguais: nesse caso, qualquer permutação tem a mesma aparência.
 
 ## 8. Controle do progresso
 
@@ -236,22 +241,25 @@ Quando o tamanho chega a `BALLOONS.length`, `isComplete` passa a ser verdadeiro.
 
 ## 9. Preservação da ordem digitada
 
-Durante a rodada, as fichas aparecem nas posições originais dos balões. Na fase final, cada ficha recebe como destino o mesmo índice que ocupava no input:
+Durante a rodada, as fichas aparecem embaralhadas nas posições dos balões. Na fase final, cada ficha recebe como destino seu índice de origem no input:
 
 ```tsx
-finalIndex={item.id - 1}
+const sourceIndex = balloonOrder[item.id - 1];
+value={numbers[sourceIndex]}
+finalIndex={sourceIndex}
 ```
 
-O balão 1 leva o primeiro valor para a primeira posição, o balão 2 leva o segundo valor para a segunda posição e assim sucessivamente. Não existe classificação por valor, ranking ou chamada a `sort`.
+O identificador determina apenas qual balão está sendo renderizado. `sourceIndex` determina qual ocorrência da entrada ele carrega e para qual posição ela deverá voltar. Não existe classificação por valor, ranking ou chamada a `sort`.
 
 Exemplo:
 
 ```text
-input:     [8, 2, 10, 5, 1, 7]
-resultado: [8, 2, 10, 5, 1, 7]
+input:        [3, 2, 5, 1, 2, 5]
+nos balões:  [2, 5, 5, 2, 3, 1]
+alinhadas:   [3, 2, 5, 1, 2, 5]
 ```
 
-Como o índice vem do identificador único do balão, valores repetidos também ocupam destinos diferentes:
+Como cada ocorrência conserva seu próprio índice de origem, valores repetidos também ocupam destinos definidos:
 
 ```text
 input:     [2, 1, 2, 1, 3, 3]
@@ -346,7 +354,10 @@ Os testes confirmam que:
 - o formato compacto de seis dígitos é aceito;
 - entradas incompletas ou com caracteres inválidos são rejeitadas;
 - o array interpretado preserva exatamente a ordem digitada;
-- valores repetidos permanecem em suas posições originais.
+- os valores aparecem embaralhados nos balões;
+- cada índice é usado uma única vez;
+- as fichas recuperam a ordem digitada ao se alinharem, inclusive com valores repetidos;
+- duas rodadas consecutivas não recebem callbacks atrasados de animações antigas.
 
 ## 14. Como executar o projeto
 
@@ -417,12 +428,12 @@ Substitua `capivara.svg` por outra arte e revise `CAPYBARA_HAND_X` e `CAPYBARA_H
 
 1. O usuário digita seis números.
 2. `parseNumberInput` valida e converte a entrada.
-3. Os números são associados aos seis balões na ordem digitada.
+3. `createShuffledOrder` distribui os índices digitados entre os seis balões.
 4. O primeiro toque bloqueia o campo de entrada.
 5. O balão sobe e desaparece.
 6. A ficha correspondente surge com efeito elástico.
 7. O progresso é atualizado no cabeçalho.
 8. O processo se repete até os seis balões serem coletados.
-9. Cada ficha usa o índice do seu balão como posição final.
-10. Todas as fichas se deslocam simultaneamente e mantêm a ordem digitada.
-11. Ao reiniciar, os estados das animações são recriados e o input é liberado.
+9. Cada ficha usa seu `sourceIndex` como posição final.
+10. Todas as fichas se deslocam simultaneamente e recuperam a ordem digitada.
+11. Ao reiniciar, uma nova distribuição é criada, os estados das animações são recriados e o input é liberado.

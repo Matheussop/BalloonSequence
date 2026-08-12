@@ -5,7 +5,8 @@ Protótipo em React Native **0.79.2** :
 - ao tocar em um balão, ele sobe com uma leve oscilação e sai da tela;
 - uma ficha numerada aparece no lugar do balão;
 - o usuário define seis números antes de iniciar a rodada;
-- depois que os seis balões são escolhidos, as fichas se movem para uma fileira preservando a ordem digitada;
+- os valores são distribuídos aleatoriamente entre os balões a cada entrada válida ou nova rodada;
+- depois que os seis balões são escolhidos, as fichas se movem para uma fileira recuperando exatamente a ordem digitada;
 - valores repetidos são suportados e permanecem em suas respectivas posições;
 - o campo é bloqueado durante a rodada para os valores não mudarem no meio da animação;
 - o botão inferior reinicia a experiência e libera o campo para edição.

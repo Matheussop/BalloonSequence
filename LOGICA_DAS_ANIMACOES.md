@@ -551,31 +551,36 @@ Não são usadas margens horizontais na ficha. Isso é importante para que a fó
 
 ## 25. Cálculo da ordem final
 
-A posição final não é calculada a partir do valor numérico. Cada ficha utiliza diretamente o índice do balão associado:
+A posição final não é calculada a partir do valor numérico nem diretamente do identificador do balão. `balloonOrder` é uma permutação dos índices da entrada. Cada balão consulta um `sourceIndex` nessa permutação e usa o mesmo índice para buscar o conteúdo e definir o destino:
 
 ```tsx
-finalIndex={item.id - 1}
+const sourceIndex = balloonOrder[item.id - 1];
+
+value={numbers[sourceIndex]}
+finalIndex={sourceIndex}
 ```
 
-Como os identificadores começam em 1, a subtração produz índices de 0 a 5.
+Esse vínculo não pode ser perdido: `value` informa o que a ficha mostra e `finalIndex` registra de qual posição digitada aquela ocorrência veio.
 
 Exemplo:
 
 ```text
-numbers     = [8, 2, 10, 5, 1, 7]
-ordem final = [8, 2, 10, 5, 1, 7]
+numbers       = [3, 2, 5, 1, 2, 5]
+balloonOrder  = [1, 2, 5, 4, 0, 3]
+nos balões    = [2, 5, 5, 2, 3, 1]
+ordem final   = [3, 2, 5, 1, 2, 5]
 ```
 
-| Balão | Valor | `finalIndex` |
-|---:|---:|---:|
-| 1 | 8 | 0 |
-| 2 | 2 | 1 |
-| 3 | 10 | 2 |
-| 4 | 5 | 3 |
-| 5 | 1 | 4 |
-| 6 | 7 | 5 |
+| Balão | `sourceIndex` | Valor | `finalIndex` |
+|---:|---:|---:|---:|
+| 1 | 1 | 2 | 1 |
+| 2 | 2 | 5 | 2 |
+| 3 | 5 | 5 | 5 |
+| 4 | 4 | 2 | 4 |
+| 5 | 0 | 3 | 0 |
+| 6 | 3 | 1 | 3 |
 
-Não existe `sort`, ranking numérico ou desempate. Valores repetidos continuam em posições diferentes porque cada ocorrência pertence a um balão com identificador próprio.
+Não existe `sort`, ranking numérico ou desempate. Valores repetidos continuam rastreáveis porque cada ocorrência conserva seu índice, mesmo quando duas fichas exibem o mesmo conteúdo.
 
 ## 26. Destino horizontal da ficha
 
@@ -1030,32 +1035,40 @@ Como o callback do grupo verifica `finished`, o cancelamento não chama `handleP
 
 O input não é uma animação, mas determina o conteúdo e o destino de cada ficha. `parseNumberInput` só atualiza `numbers` quando existem exatamente seis valores válidos.
 
-O array `numbers` associa um valor a cada `id`. O próprio `id` define `finalIndex`. O `finalIndex` define `tokenX`, que define o `outputRange` do `translateX`.
+O array `numbers` preserva a entrada, e `balloonOrder` associa cada balão a um índice de origem. Esse `sourceIndex` seleciona o valor e também se torna o `finalIndex`. Por sua vez, `finalIndex` define `tokenX`, que define o `outputRange` do `translateX`.
 
 ```mermaid
 flowchart LR
     A["texto digitado"] --> B["parseNumberInput"]
     B --> C["numbers"]
-    C --> D["item.id - 1"]
-    D --> E["finalIndex"]
-    E --> F["tokenX"]
-    F --> G["translateX final"]
-    G --> H["posição final do input"]
+    C --> D["createShuffledOrder"]
+    D --> E["balloonOrder"]
+    E --> F["sourceIndex do balão"]
+    C --> G["value = numbers[sourceIndex]"]
+    F --> G
+    F --> H["finalIndex"]
+    H --> I["tokenX"]
+    I --> J["translateX final"]
+    J --> K["posição original no input"]
 ```
 
 O campo é bloqueado assim que o primeiro balão inicia sua animação. Isso impede que valores e destinos mudem no meio da rodada. O reset devolve `ordered` a zero e libera o input.
 
 ## 47. Valores repetidos e posições finais
 
-O conteúdo da ficha não participa do cálculo da posição. Por isso, valores repetidos não exigem ranking ou desempate: cada ocorrência usa o índice do seu próprio balão.
+O conteúdo da ficha não participa do cálculo da posição. Por isso, valores repetidos não exigem ranking ou desempate: cada ocorrência usa seu `sourceIndex`.
 
 Exemplo:
 
 ```text
-input          = [2, 1, 2, 1, 3, 3]
-finalIndexes   = [0, 1, 2, 3, 4, 5]
+input           = [2, 1, 2, 1, 3, 3]
+balloonOrder    = [3, 5, 0, 4, 1, 2]
+valores visíveis = [1, 3, 2, 3, 1, 2]
+finalIndexes    = [3, 5, 0, 4, 1, 2]
 resultado final = [2, 1, 2, 1, 3, 3]
 ```
+
+`createShuffledOrder` executa Fisher–Yates sobre os índices `[0, 1, 2, 3, 4, 5]`. Se a permutação produzir a mesma sequência visual por causa de repetições, ela força a troca entre duas posições de valores diferentes. Quando todos os números são iguais, não existe uma ordem visualmente diferente possível.
 
 ## 48. Quantidade atual de balões
 
@@ -1467,7 +1480,7 @@ Se uma ficha terminar no local errado:
 4. verificar se alguma margem foi adicionada ao `Animated.View`;
 5. somar posição-base e translação final;
 6. verificar se a quantidade de fichas cabe no palco;
-7. conferir se cada `finalIndex` corresponde a `item.id - 1`;
+7. conferir se `value` e `finalIndex` usam o mesmo `sourceIndex` de `balloonOrder`;
 8. verificar se `ordered` realmente chegou a 1.
 
 Se um balão reaparecer durante a rodada:
@@ -1492,42 +1505,43 @@ O fluxo interno completo de uma rodada é:
 1. `App` monta e cria `ordered = 0`.
 2. `inputValue` começa com seis valores padrão.
 3. `parseNumberInput` valida o texto e produz `numbers`.
-4. Cada balão recebe `finalIndex={item.id - 1}`.
-5. `App` cria um `Balloon` para cada configuração.
-6. Cada `Balloon` cria `flight = 0`, `reveal = 0` e `tapped = false`.
-7. As fichas são montadas invisíveis e em escala zero.
-8. Os balões são montados acima das fichas.
-9. O usuário pode editar o input enquanto a rodada não começou.
-10. Uma entrada inválida desabilita os balões.
-11. O usuário toca no `Pressable` com uma entrada válida.
-12. `pop` verifica `tapped`.
-13. `tapped` passa imediatamente para verdadeiro.
-14. `onStart` bloqueia o input por meio de `hasStarted`.
-15. O `parallel` inicia o `timing` de `flight`.
-16. `translateY`, `translateX`, `rotate`, `scale` e `opacity` passam a observar `flight`.
-17. Depois de 180 ms, a spring de `reveal` inicia.
-18. A ficha aumenta escala e opacidade.
-19. O balão começa o fade quando `flight` passa de 0,75.
-20. O `parallel` aguarda as duas animações terminarem.
-21. `onPop(item.id)` é chamado.
-22. `handlePop` recebe o estado mais recente de `collected`.
-23. O ID é adicionado se ainda não estiver presente.
-24. A nova renderização remove o balão concluído.
-25. A ficha permanece montada e visível.
-26. O processo se repete para os demais balões.
-27. Quando `collected.length === BALLOONS.length`, `isComplete` passa a verdadeiro.
-28. O `useEffect` cria a animação global, que aguarda 350 ms.
-29. `ordered` começa a sair de 0.
-30. Cada ficha interpola sua translação usando o índice correspondente à ordem digitada.
-31. Todas seguem a curva cúbica de entrada e saída.
-32. `ordered` chega a 1 depois de 900 ms.
-33. As fichas terminam na linha `FINAL_TOP`, na mesma ordem do input.
-34. Ao reiniciar, a animação global é interrompida e `ordered` volta a zero.
-35. `collected` é esvaziado e `round` muda as chaves.
-36. As instâncias antigas são desmontadas e seus cleanups cancelam `flight` e `reveal`.
-37. Callbacks cancelados recebem `finished: false` e não chamam `handlePop`; novos `flight`, `reveal` e `tapped` são criados.
-38. O input é liberado, preservando os valores atuais para repetição ou edição.
-39. A próxima rodada começa no estado inicial.
+4. `createShuffledOrder(numbers)` cria uma permutação dos índices da entrada.
+5. Cada balão recebe `value={numbers[sourceIndex]}` e `finalIndex={sourceIndex}`.
+6. `App` cria um `Balloon` para cada configuração.
+7. Cada `Balloon` cria `flight = 0`, `reveal = 0` e `tapped = false`.
+8. As fichas são montadas invisíveis e em escala zero.
+9. Os balões são montados acima das fichas.
+10. O usuário pode editar o input enquanto a rodada não começou.
+11. Uma entrada inválida desabilita os balões.
+12. O usuário toca no `Pressable` com uma entrada válida.
+13. `pop` verifica `tapped`.
+14. `tapped` passa imediatamente para verdadeiro.
+15. `onStart` bloqueia o input por meio de `hasStarted`.
+16. O `parallel` inicia o `timing` de `flight`.
+17. `translateY`, `translateX`, `rotate`, `scale` e `opacity` passam a observar `flight`.
+18. Depois de 180 ms, a spring de `reveal` inicia.
+19. A ficha aumenta escala e opacidade.
+20. O balão começa o fade quando `flight` passa de 0,75.
+21. O `parallel` aguarda as duas animações terminarem.
+22. `onPop(item.id)` é chamado.
+23. `handlePop` recebe o estado mais recente de `collected`.
+24. O ID é adicionado se ainda não estiver presente.
+25. A nova renderização remove o balão concluído.
+26. A ficha permanece montada e visível.
+27. O processo se repete para os demais balões.
+28. Quando `collected.length === BALLOONS.length`, `isComplete` passa a verdadeiro.
+29. O `useEffect` cria a animação global, que aguarda 350 ms.
+30. `ordered` começa a sair de 0.
+31. Cada ficha interpola sua translação usando o `sourceIndex` correspondente à posição original da entrada.
+32. Todas seguem a curva cúbica de entrada e saída.
+33. `ordered` chega a 1 depois de 900 ms.
+34. As fichas terminam na linha `FINAL_TOP`, na mesma ordem do input.
+35. Ao reiniciar, a animação global é interrompida e `ordered` volta a zero.
+36. `collected` é esvaziado, uma nova distribuição é criada e `round` muda as chaves.
+37. As instâncias antigas são desmontadas e seus cleanups cancelam `flight` e `reveal`.
+38. Callbacks cancelados recebem `finished: false` e não chamam `handlePop`; novos `flight`, `reveal` e `tapped` são criados.
+39. O input é liberado, preservando os valores atuais para repetição ou edição.
+40. A próxima rodada começa com os valores redistribuídos entre os balões.
 
 ## 72. Resumo conceitual
 

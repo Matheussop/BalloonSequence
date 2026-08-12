@@ -5,7 +5,11 @@
 import React from 'react';
 import {Animated} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
-import App, {getStringPath, parseNumberInput} from '../App';
+import App, {
+  createShuffledOrder,
+  getStringPath,
+  parseNumberInput,
+} from '../App';
 
 test('renders correctly', async () => {
   await ReactTestRenderer.act(() => {
@@ -22,6 +26,21 @@ test('accepts separated numbers and a compact six-digit input', () => {
 
 test('keeps the parsed numbers in the exact input order', () => {
   expect(parseNumberInput('8, 2, 10, 5, 1, 7')).toEqual([8, 2, 10, 5, 1, 7]);
+});
+
+test('shuffles balloon values but restores the typed order at their destinations', () => {
+  const numbers = [3, 2, 5, 1, 2, 5];
+  const order = createShuffledOrder(numbers, () => 0.42);
+  const valuesOnBalloons = order.map(sourceIndex => numbers[sourceIndex]);
+  const alignedValues: number[] = [];
+
+  order.forEach((sourceIndex, balloonIndex) => {
+    alignedValues[sourceIndex] = valuesOnBalloons[balloonIndex];
+  });
+
+  expect([...order].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5]);
+  expect(valuesOnBalloons).not.toEqual(numbers);
+  expect(alignedValues).toEqual(numbers);
 });
 
 test('connects balloon strings to the capybara hand anchor', () => {

@@ -57,6 +57,41 @@ export function parseNumberInput(text: string): number[] | null {
   return parts.map(Number);
 }
 
+export function createShuffledOrder(
+  values: number[],
+  random: () => number = Math.random,
+): number[] {
+  const order = values.map((_, index) => index);
+
+  for (let index = order.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(random() * (index + 1));
+    [order[index], order[randomIndex]] = [order[randomIndex], order[index]];
+  }
+
+  const visibleOrderChanged = order.some(
+    (sourceIndex, balloonIndex) =>
+      values[sourceIndex] !== values[balloonIndex],
+  );
+
+  if (!visibleOrderChanged) {
+    const differentValueIndex = values.findIndex(value => value !== values[0]);
+
+    if (differentValueIndex > 0) {
+      return values.map((_, index) => {
+        if (index === 0) {
+          return differentValueIndex;
+        }
+        if (index === differentValueIndex) {
+          return 0;
+        }
+        return index;
+      });
+    }
+  }
+
+  return order;
+}
+
 type BalloonProps = {
   item: BalloonData;
   value: number;
@@ -267,6 +302,9 @@ function App(): React.JSX.Element {
   const [collected, setCollected] = useState<number[]>([]);
   const [round, setRound] = useState(0);
   const [numbers, setNumbers] = useState<number[]>(DEFAULT_NUMBERS);
+  const [balloonOrder, setBalloonOrder] = useState<number[]>(() =>
+    createShuffledOrder(DEFAULT_NUMBERS),
+  );
   const [inputValue, setInputValue] = useState(DEFAULT_NUMBERS.join(', '));
   const [hasStarted, setHasStarted] = useState(false);
   const ordered = useRef(new Animated.Value(0)).current;
@@ -308,6 +346,7 @@ function App(): React.JSX.Element {
     ordered.stopAnimation();
     ordered.setValue(0);
     setCollected([]);
+    setBalloonOrder(createShuffledOrder(numbers));
     setRound(current => current + 1);
     setHasStarted(false);
   };
@@ -317,6 +356,7 @@ function App(): React.JSX.Element {
     const parsed = parseNumberInput(text);
     if (parsed) {
       setNumbers(parsed);
+      setBalloonOrder(createShuffledOrder(parsed));
     }
   };
 
@@ -333,7 +373,8 @@ function App(): React.JSX.Element {
       <View style={styles.content}>
         <Text style={styles.title}>Clique nos balões e descubra a sequência!</Text>
         <Text style={styles.subtitle}>
-          Digite seis números. No final, eles manterão a ordem informada.
+          Digite seis números. Eles aparecerão embaralhados e, no final,
+          voltarão à ordem informada.
         </Text>
         <TextInput
           accessibilityLabel="Números dos balões"
@@ -361,19 +402,23 @@ function App(): React.JSX.Element {
         </Text>
 
         <View style={styles.stage}>
-          {BALLOONS.map(item => (
-            <Balloon
-              key={`${round}-${item.id}`}
-              item={item}
-              value={numbers[item.id - 1]}
-              finalIndex={item.id - 1}
-              collected={collected.includes(item.id)}
-              ordered={ordered}
-              disabled={!inputIsValid}
-              onStart={() => setHasStarted(true)}
-              onPop={handlePop}
-            />
-          ))}
+          {BALLOONS.map(item => {
+            const sourceIndex = balloonOrder[item.id - 1];
+
+            return (
+              <Balloon
+                key={`${round}-${item.id}`}
+                item={item}
+                value={numbers[sourceIndex]}
+                finalIndex={sourceIndex}
+                collected={collected.includes(item.id)}
+                ordered={ordered}
+                disabled={!inputIsValid}
+                onStart={() => setHasStarted(true)}
+                onPop={handlePop}
+              />
+            );
+          })}
           <View style={styles.mascotWrap}>
             <Capivara
               accessibilityLabel="Capivara segurando os fios"
