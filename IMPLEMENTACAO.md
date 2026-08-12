@@ -27,15 +27,23 @@ Não foi adicionada nenhuma biblioteca externa de animação. As bibliotecas de 
 
 ### `App.tsx`
 
-Contém toda a interface e a lógica da experiência:
+Contém a interface e coordena o estado global da experiência:
 
-- configuração visual dos balões;
-- leitura e validação dos números digitados;
-- animações de subida e revelação;
 - controle dos balões selecionados;
-- preservação da ordem de entrada na fileira final;
 - animação de reorganização das fichas;
 - reinício da rodada.
+
+### `src/components/Balloon.tsx`
+
+Encapsula um balão completo: área de toque, arte SVG, fio, ficha, valores animados `flight` e `reveal`, além do cleanup das animações individuais.
+
+### `src/config/balloons.ts`
+
+Centraliza tipos, posições, dimensões compartilhadas, quantidade de balões, valores padrão e o cálculo Bézier de `getStringPath`.
+
+### `src/utils/sequence.ts`
+
+Contém as funções puras `parseNumberInput` e `createShuffledOrder`. Por não dependerem da interface, essas regras podem ser testadas isoladamente.
 
 ### `__tests__/App.test.tsx`
 
@@ -58,7 +66,7 @@ type BalloonData = {
   id: number;
   x: number;
   y: number;
-  color: string;
+  variant: 'blue' | 'yellow';
 };
 ```
 
@@ -67,17 +75,16 @@ Cada item possui:
 - `id`: identificador estável do balão;
 - `x`: posição horizontal inicial dentro do palco;
 - `y`: posição vertical inicial;
-- `color`: cor principal do balão.
+- `variant`: seleciona explicitamente a arte azul ou amarela.
 
-A constante `BALLOONS` possui seis itens e determina a composição visual inicial. Alterar `x` ou `y` muda a posição de um balão sem afetar o restante da lógica. A condição de conclusão e o contador usam `BALLOONS.length`, evitando denominadores fixos.
+A constante `BALLOONS` possui seis itens e determina a composição visual inicial. Alterar `x` ou `y` muda a posição de um balão sem afetar o restante da lógica. `BALLOON_COUNT` é derivado de `BALLOONS.length` e reutilizado pela validação, condição de conclusão e contador.
 
 ### Área de toque
 
 O `Pressable` acompanha somente o corpo visível, não o fio nem o `viewBox` completo. Ambos possuem 72 pontos de largura, mas usam alturas específicas:
 
 ```ts
-blueHitArea: {height: 74},
-yellowHitArea: {height: 80},
+const ARTWORK_HEIGHT = {blue: 74, yellow: 80} as const;
 ```
 
 Essas medidas refletem as proporções renderizadas de cada arte. A camada dos fios, o contêiner animado e o próprio componente SVG possuem `pointerEvents="none"`. Assim, somente o `Pressable` compacto recebe o toque: nenhuma região transparente do SVG, nenhuma curva e nenhum filho que ultrapasse o contêiner pode ampliar ou bloquear a área interativa.
@@ -142,14 +149,16 @@ viewBox="98 22 102 112"
 
 Também foram removidos dos dois arquivos os caminhos ocultos da ficha numerada e os fios estáticos. Com isso, o tamanho geométrico do componente passa a corresponder ao balão que o usuário enxerga, sem offsets negativos ou desenhos invisíveis ao redor.
 
-O componente escolhe a arte com base na cor configurada em `BALLOONS`:
+O componente escolhe a arte com base na variante configurada em `BALLOONS`:
 
 ```tsx
-{isBlue ? (
-  <BlueBalloon height={74} width={72} pointerEvents="none" />
-) : (
-  <YellowBalloon height={80} width={72} pointerEvents="none" />
-)}
+const BalloonArtwork = item.variant === 'blue' ? BlueBalloon : YellowBalloon;
+
+<BalloonArtwork
+  height={ARTWORK_HEIGHT[item.variant]}
+  width={BALLOON_SIZE}
+  pointerEvents="none"
+/>
 ```
 
 Os SVGs ficam dentro do mesmo `Animated.View` que antes continha o balão desenhado em código. Dessa forma, `translateX`, `translateY`, rotação, escala e opacidade continuam animando o corpo inteiro sem mudanças na lógica. O contêiner mede `72 × 74` para o azul e `72 × 80` para o amarelo, exatamente como a respectiva área de toque.
@@ -234,10 +243,10 @@ Ao concluir a saída de um balão, `handlePop` adiciona seu identificador ao arr
 O contador do cabeçalho usa o tamanho desse array:
 
 ```ts
-{collected.length}/{BALLOONS.length}
+{collected.length}/{BALLOON_COUNT}
 ```
 
-Quando o tamanho chega a `BALLOONS.length`, `isComplete` passa a ser verdadeiro. Um `useEffect` observa essa transição e inicia a animação final depois de um pequeno intervalo de 350 milissegundos. A animação não é iniciada dentro da função atualizadora de `setCollected`, pois atualizadores de estado precisam permanecer livres de efeitos colaterais.
+Quando o tamanho chega a `BALLOON_COUNT`, `isComplete` passa a ser verdadeiro. Um `useEffect` observa essa transição e inicia a animação final depois de um pequeno intervalo de 350 milissegundos. A animação não é iniciada dentro da função atualizadora de `setCollected`, pois atualizadores de estado precisam permanecer livres de efeitos colaterais.
 
 ## 9. Preservação da ordem digitada
 
@@ -269,7 +278,7 @@ resultado: [2, 1, 2, 1, 3, 3]
 O índice é convertido em uma coordenada horizontal:
 
 ```ts
-const tokenX = FINAL_LEFT + finalIndex * FINAL_GAP;
+const tokenX = FINAL_ROW.left + finalIndex * FINAL_ROW.gap;
 ```
 
 Portanto, a posição final depende exclusivamente da ordem de entrada, e não do valor numérico.

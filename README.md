@@ -41,7 +41,12 @@ npm run ios
 
 ## Onde alterar a animação
 
-Toda a demonstração está em `App.tsx`. Os pontos iniciais dos balões ficam em `BALLOONS`; a subida é controlada por `flight`, a entrada da ficha por `reveal` e a reorganização final por `ordered`.
+- `App.tsx`: tela, estado da rodada e animação coletiva das fichas;
+- `src/components/Balloon.tsx`: toque, subida, revelação e renderização de cada balão;
+- `src/config/balloons.ts`: posições, dimensões, variantes e curvas dos fios;
+- `src/utils/sequence.ts`: validação do input e embaralhamento dos índices.
+
+A subida é controlada por `flight`, a entrada da ficha por `reveal` e a reorganização final por `ordered`.
 
 Os SVGs são importados como componentes por meio de `react-native-svg-transformer`, configurado em `metro.config.js`. Depois de alterar essa configuração, reinicie o Metro com `npm start -- --reset-cache`.
 

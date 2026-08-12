@@ -2,7 +2,7 @@
 
 ## 1. Propósito deste documento
 
-Este documento descreve em profundidade o sistema de animações implementado em `App.tsx` no projeto **Balloon Sequence**.
+Este documento descreve em profundidade o sistema de animações implementado em `App.tsx` e `src/components/Balloon.tsx` no projeto **Balloon Sequence**.
 
 O objetivo não é apenas listar quais animações existem, mas explicar:
 
@@ -17,7 +17,7 @@ O objetivo não é apenas listar quais animações existem, mas explicar:
 - quais problemas podem surgir ao modificar tamanhos, tempos ou quantidade de balões;
 - como evoluir a solução sem criar condições de corrida ou inconsistências visuais.
 
-As explicações refletem a versão atual do código. A constante `BALLOONS` contém seis balões e o contador utiliza `BALLOONS.length`, mantendo a interface alinhada à configuração.
+As explicações refletem a versão atual do código. A constante `BALLOONS` contém seis balões e `BALLOON_COUNT` deriva de `BALLOONS.length`, mantendo validação, contador e conclusão alinhados à configuração.
 
 ## 2. Visão geral da experiência
 
@@ -72,28 +72,27 @@ O sistema usa constantes para manter o cálculo visual previsível:
 ```ts
 const BALLOON_SIZE = 72;
 const TOKEN_SIZE = 48;
-const FINAL_TOP = 28;
-const FINAL_LEFT = 4;
-const FINAL_GAP = 52;
+const TOKEN_CENTER_OFFSET = (BALLOON_SIZE - TOKEN_SIZE) / 2;
+const FINAL_ROW = {top: 28, left: 4, gap: 52};
 ```
 
 ### `BALLOON_SIZE`
 
-Define a largura-base do corpo do balão. O corpo possui 72 pontos de largura e 82 de altura, porque sua altura é calculada como `BALLOON_SIZE + 10`.
+Define a largura-base do corpo do balão. A altura vem de `ARTWORK_HEIGHT`: 74 pontos para a variante azul e 80 para a amarela.
 
 ### `TOKEN_SIZE`
 
 Define largura e altura da ficha. Como o `borderRadius` usa metade desse valor, a ficha se torna circular.
 
-### `FINAL_TOP`
+### `FINAL_ROW.top`
 
 É a coordenada vertical desejada para todas as fichas depois da ordenação. Ao final, todas devem estar com `top` visual equivalente a 28 dentro do palco.
 
-### `FINAL_LEFT`
+### `FINAL_ROW.left`
 
-É a base do cálculo horizontal da primeira ficha. Na implementação atual, a margem horizontal aplicada à ficha adiciona um deslocamento visual extra de 12 pontos; isso será detalhado na seção sobre coordenadas.
+É a base do cálculo horizontal da primeira ficha. `TOKEN_CENTER_OFFSET`, atualmente 12 pontos, centraliza a ficha sob o balão e participa do cálculo da translação final.
 
-### `FINAL_GAP`
+### `FINAL_ROW.gap`
 
 É a distância entre o início de uma ficha e o início da próxima. Como a ficha possui 48 pontos e o intervalo é 52, existe um espaço visual de aproximadamente 4 pontos entre elas.
 
@@ -139,14 +138,14 @@ type BalloonData = {
   id: number;
   x: number;
   y: number;
-  color: string;
+  variant: 'blue' | 'yellow';
 };
 ```
 
 Essas coordenadas são aplicadas à área de toque:
 
 ```tsx
-style={[styles.balloonHitArea, {left: item.x, top: item.y}]}
+style={[styles.hitArea, {left: item.x, top: item.y}]}
 ```
 
 Portanto:
@@ -587,7 +586,7 @@ Não existe `sort`, ranking numérico ou desempate. Valores repetidos continuam 
 O destino é calculado por:
 
 ```ts
-const tokenX = FINAL_LEFT + finalIndex * FINAL_GAP;
+const tokenX = FINAL_ROW.left + finalIndex * FINAL_ROW.gap;
 ```
 
 Com os valores atuais:
@@ -610,23 +609,24 @@ A interpolação é:
 ```ts
 translateX: ordered.interpolate({
   inputRange: [0, 1],
-  outputRange: [0, tokenX - item.x - 12],
+  outputRange: [0, tokenX - item.x - TOKEN_CENTER_OFFSET],
 })
 ```
 
 O deslocamento final é a diferença entre destino e origem.
 
-A origem calculada pelo `left` é `item.x + 12`. Assim:
+A origem calculada pelo `left` é `item.x + TOKEN_CENTER_OFFSET`. Assim:
 
 ```text
-deslocamento = tokenX - (item.x + 12)
-deslocamento = tokenX - item.x - 12
+deslocamento = tokenX - (item.x + TOKEN_CENTER_OFFSET)
+deslocamento = tokenX - item.x - TOKEN_CENTER_OFFSET
 ```
 
 Somando origem e deslocamento:
 
 ```text
-(item.x + 12) + (tokenX - item.x - 12) = tokenX
+(item.x + TOKEN_CENTER_OFFSET) +
+(tokenX - item.x - TOKEN_CENTER_OFFSET) = tokenX
 ```
 
 Como não existe margem horizontal adicional, a posição visual termina exatamente em `tokenX`.
@@ -638,27 +638,28 @@ A interpolação é:
 ```ts
 translateY: ordered.interpolate({
   inputRange: [0, 1],
-  outputRange: [0, FINAL_TOP - item.y - 8],
+  outputRange: [0, FINAL_ROW.top - item.y - TOKEN_TOP_OFFSET],
 })
 ```
 
 A origem vertical da ficha é:
 
 ```text
-top inicial = item.y + 8
+top inicial = item.y + TOKEN_TOP_OFFSET
 ```
 
 O deslocamento necessário é:
 
 ```text
-deslocamento = FINAL_TOP - (item.y + 8)
-deslocamento = FINAL_TOP - item.y - 8
+deslocamento = FINAL_ROW.top - (item.y + TOKEN_TOP_OFFSET)
+deslocamento = FINAL_ROW.top - item.y - TOKEN_TOP_OFFSET
 ```
 
 Somando origem e deslocamento:
 
 ```text
-(item.y + 8) + (FINAL_TOP - item.y - 8) = FINAL_TOP
+(item.y + TOKEN_TOP_OFFSET) +
+(FINAL_ROW.top - item.y - TOKEN_TOP_OFFSET) = FINAL_ROW.top
 ```
 
 Por isso, independentemente da posição inicial do balão, todas as fichas terminam na mesma linha vertical.
@@ -806,7 +807,7 @@ A ficha não fica dentro dessa condição, então permanece renderizada depois q
 O fim da fase individual é representado pelo estado derivado:
 
 ```ts
-const isComplete = collected.length === BALLOONS.length;
+const isComplete = collected.length === BALLOON_COUNT;
 ```
 
 Um efeito observa esse estado e controla o ciclo de vida da animação final:
@@ -830,7 +831,7 @@ useEffect(() => {
 }, [isComplete, ordered]);
 ```
 
-O uso de `BALLOONS.length` mantém a condição lógica alinhada à quantidade real configurada. Separar o efeito do atualizador de `setCollected` também é essencial: o React pode executar esse atualizador durante seu processamento interno, e iniciar uma animação nele causaria uma atualização nativa em uma fase na qual efeitos não são permitidos.
+Como `BALLOON_COUNT` deriva de `BALLOONS.length`, a condição permanece alinhada à quantidade real configurada. Separar o efeito do atualizador de `setCollected` também é essencial: o React pode executar esse atualizador durante seu processamento interno, e iniciar uma animação nele causaria uma atualização nativa em uma fase na qual efeitos não são permitidos.
 
 Na configuração atual, a ordenação começa quando os seis balões foram coletados.
 
@@ -873,7 +874,7 @@ Isso difere da subida, que usa `Easing.out` porque representa um impulso já ini
     v
 último onPop
     |
-    | collected chega a BALLOONS.length
+    | collected chega a BALLOON_COUNT
     | pausa de 350 ms
     v
 ordered: 0 -> 1 durante 900 ms
@@ -1072,7 +1073,7 @@ resultado final = [2, 1, 2, 1, 3, 3]
 
 ## 48. Quantidade atual de balões
 
-Atualmente `BALLOONS` contém seis itens. As principais partes da lógica usam `BALLOONS.length`, portanto se adaptam automaticamente:
+Atualmente `BALLOONS` contém seis itens. `BALLOON_COUNT` deriva desse array e é usado pelas principais partes da lógica:
 
 - quantidade de valores exigidos no input;
 - condição para iniciar a ordenação;
@@ -1080,7 +1081,7 @@ Atualmente `BALLOONS` contém seis itens. As principais partes da lógica usam `
 - quantidade de fichas finais.
 
 ```tsx
-<Text>{collected.length}/{BALLOONS.length}</Text>
+<Text>{collected.length}/{BALLOON_COUNT}</Text>
 ```
 
 ## 49. Espaço disponível na fileira final
@@ -1088,7 +1089,7 @@ Atualmente `BALLOONS` contém seis itens. As principais partes da lógica usam `
 Para `N` fichas, a largura aproximada ocupada é:
 
 ```text
-largura = TOKEN_SIZE + (N - 1) × FINAL_GAP
+largura = TOKEN_SIZE + (N - 1) × FINAL_ROW.gap
 ```
 
 Com seis fichas:
@@ -1105,14 +1106,14 @@ Com sete fichas:
 48 + 6 × 52 = 360 pontos
 ```
 
-Esse valor excederia a largura de 340 antes mesmo de considerar margens. Portanto, ao retornar para sete balões, seria necessário reduzir `FINAL_GAP`, reduzir `TOKEN_SIZE`, aumentar o palco ou calcular o espaçamento dinamicamente.
+Esse valor excederia a largura de 340 antes mesmo de considerar margens. Portanto, ao retornar para sete balões, seria necessário reduzir `FINAL_ROW.gap`, reduzir `TOKEN_SIZE`, aumentar o palco ou calcular o espaçamento dinamicamente.
 
 Uma fórmula dinâmica possível é:
 
 ```ts
 const gap =
-  BALLOONS.length > 1
-    ? (stageWidth - TOKEN_SIZE) / (BALLOONS.length - 1)
+  BALLOON_COUNT > 1
+    ? (stageWidth - TOKEN_SIZE) / (BALLOON_COUNT - 1)
     : 0;
 ```
 
@@ -1424,11 +1425,11 @@ Para facilitar esses testes, fórmulas geométricas poderiam ser extraídas para
 
 ```ts
 function getTokenTargetX(finalIndex: number) {
-  return FINAL_LEFT + finalIndex * FINAL_GAP;
+  return FINAL_ROW.left + finalIndex * FINAL_ROW.gap;
 }
 
 function getTokenTranslationX(itemX: number, finalIndex: number) {
-  return getTokenTargetX(finalIndex) - itemX - 12;
+  return getTokenTargetX(finalIndex) - itemX - TOKEN_CENTER_OFFSET;
 }
 ```
 
@@ -1441,7 +1442,7 @@ Ao adicionar ou remover balões:
 1. atualizar a constante `BALLOONS`;
 2. conferir o denominador do contador;
 3. recalcular a largura da fileira final;
-4. ajustar `FINAL_GAP` ou `TOKEN_SIZE`;
+4. ajustar `FINAL_ROW.gap` ou `TOKEN_SIZE`;
 5. verificar se todos os destinos cabem no palco;
 6. conferir sobreposição das posições iniciais;
 7. testar toques simultâneos;
@@ -1453,22 +1454,13 @@ Ao adicionar ou remover balões:
 
 Ao mudar `TOKEN_SIZE`:
 
-1. revisar a centralização `(BALLOON_SIZE - TOKEN_SIZE) / 2`;
-2. revisar o `-12` usado no cálculo de `translateX`;
-3. remover constantes implícitas e preferir uma variável de offset;
-4. revisar `FINAL_GAP`;
-5. conferir o tamanho da fonte;
-6. conferir a largura total da fileira;
-7. verificar sombras e bordas;
-8. testar números de dois dígitos.
-
-Uma melhoria seria criar:
-
-```ts
-const TOKEN_CENTER_OFFSET = (BALLOON_SIZE - TOKEN_SIZE) / 2;
-```
-
-E substituir o valor literal 12 nas fórmulas.
+1. revisar `TOKEN_CENTER_OFFSET`;
+2. confirmar que a origem e o cálculo de `translateX` reutilizam esse offset;
+3. revisar `FINAL_ROW.gap`;
+4. conferir o tamanho da fonte;
+5. conferir a largura total da fileira;
+6. verificar sombras e bordas;
+7. testar números de dois dígitos.
 
 ## 70. Checklist para depuração visual
 
@@ -1495,7 +1487,7 @@ Se a ordenação não iniciar:
 1. verificar se todos os callbacks `onPop` foram chamados;
 2. conferir se alguma spring ainda está ativa;
 3. verificar `next.length`;
-4. comparar com `BALLOONS.length`;
+4. comparar com `BALLOON_COUNT`;
 5. conferir duplicações de `id`.
 
 ## 71. Sequência técnica completa
@@ -1529,13 +1521,13 @@ O fluxo interno completo de uma rodada é:
 25. A nova renderização remove o balão concluído.
 26. A ficha permanece montada e visível.
 27. O processo se repete para os demais balões.
-28. Quando `collected.length === BALLOONS.length`, `isComplete` passa a verdadeiro.
+28. Quando `collected.length === BALLOON_COUNT`, `isComplete` passa a verdadeiro.
 29. O `useEffect` cria a animação global, que aguarda 350 ms.
 30. `ordered` começa a sair de 0.
 31. Cada ficha interpola sua translação usando o `sourceIndex` correspondente à posição original da entrada.
 32. Todas seguem a curva cúbica de entrada e saída.
 33. `ordered` chega a 1 depois de 900 ms.
-34. As fichas terminam na linha `FINAL_TOP`, na mesma ordem do input.
+34. As fichas terminam na linha `FINAL_ROW.top`, na mesma ordem do input.
 35. Ao reiniciar, a animação global é interrompida e `ordered` volta a zero.
 36. `collected` é esvaziado, uma nova distribuição é criada e `round` muda as chaves.
 37. As instâncias antigas são desmontadas e seus cleanups cancelam `flight` e `reveal`.

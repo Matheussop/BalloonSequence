@@ -5,11 +5,9 @@
 import React from 'react';
 import {Animated} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
-import App, {
-  createShuffledOrder,
-  getStringPath,
-  parseNumberInput,
-} from '../App';
+import App from '../App';
+import {getStringPath} from '../src/config/balloons';
+import {createShuffledOrder, parseNumberInput} from '../src/utils/sequence';
 
 test('renders correctly', async () => {
   await ReactTestRenderer.act(() => {
@@ -43,9 +41,20 @@ test('shuffles balloon values but restores the typed order at their destinations
   expect(alignedValues).toEqual(numbers);
 });
 
+test('keeps a valid permutation when every typed value is equal', () => {
+  const order = createShuffledOrder([5, 5, 5, 5, 5, 5], () => 0.5);
+
+  expect([...order].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5]);
+});
+
 test('connects balloon strings to the capybara hand anchor', () => {
-  const bluePath = getStringPath({id: 1, x: 30, y: 154, color: '#5734F5'});
-  const yellowPath = getStringPath({id: 2, x: 104, y: 116, color: '#DDFB2A'});
+  const bluePath = getStringPath({id: 1, x: 30, y: 154, variant: 'blue'});
+  const yellowPath = getStringPath({
+    id: 2,
+    x: 104,
+    y: 116,
+    variant: 'yellow',
+  });
 
   expect(bluePath).toMatch(/^M 102 401\.5 C /);
   expect(bluePath).toMatch(/ 42 225$/);
@@ -84,29 +93,38 @@ test('can finish, reset and start another round without stale animation updates'
   for (let round = 0; round < 2; round += 1) {
     for (let id = 1; id <= 6; id += 1) {
       await ReactTestRenderer.act(() => {
-        renderer.root.findByProps({accessibilityLabel: `Balão ${id}`}).props.onPress();
+        renderer.root
+          .findByProps({accessibilityLabel: `Balão ${id}`})
+          .props.onPress();
       });
     }
 
-    expect(renderer.root.findByProps({children: 'JOGAR NOVAMENTE'})).toBeTruthy();
+    expect(
+      renderer.root.findByProps({children: 'JOGAR NOVAMENTE'}),
+    ).toBeTruthy();
 
     await ReactTestRenderer.act(() => {
       const resetButton = renderer.root
         .findAllByProps({accessibilityRole: 'button'})
-        .find(node =>
-          typeof node.props.onPress === 'function' &&
-          node.props.accessibilityLabel === undefined,
+        .find(
+          node =>
+            typeof node.props.onPress === 'function' &&
+            node.props.accessibilityLabel === undefined,
         );
       resetButton?.props.onPress();
     });
 
-    expect(renderer.root.findByProps({accessibilityLabel: 'Balão 1'})).toBeTruthy();
+    expect(
+      renderer.root.findByProps({accessibilityLabel: 'Balão 1'}),
+    ).toBeTruthy();
   }
 
   expect(
     consoleErrorSpy.mock.calls.some(call =>
       call.some(argument =>
-        String(argument).includes('useInsertionEffect must not schedule updates'),
+        String(argument).includes(
+          'useInsertionEffect must not schedule updates',
+        ),
       ),
     ),
   ).toBe(false);
