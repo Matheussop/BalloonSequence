@@ -10,7 +10,9 @@ Protótipo em React Native **0.79.2** :
 - o campo é bloqueado durante a rodada para os valores não mudarem no meio da animação;
 - o botão inferior reinicia a experiência e libera o campo para edição.
 
-A animação usa somente `Animated`, `Easing` e `Pressable`, APIs nativas do React Native. Não há dependências visuais adicionais.
+A animação usa `Animated`, `Easing` e `Pressable`. A aparência dos balões vem de `assets/blue_ballon.svg` e `assets/yellow_ballon.svg`, renderizados com `react-native-svg`.
+
+A capivara usa `assets/capivara.svg`. Os fios são caminhos Bézier gerados dinamicamente: todos convergem na mão da capivara e cada fio desaparece quando seu respectivo balão inicia a subida.
 
 ## Executar
 
@@ -39,5 +41,7 @@ npm run ios
 ## Onde alterar a animação
 
 Toda a demonstração está em `App.tsx`. Os pontos iniciais dos balões ficam em `BALLOONS`; a subida é controlada por `flight`, a entrada da ficha por `reveal` e a reorganização final por `ordered`.
+
+Os SVGs são importados como componentes por meio de `react-native-svg-transformer`, configurado em `metro.config.js`. Depois de alterar essa configuração, reinicie o Metro com `npm start -- --reset-cache`.
 
 O campo aceita seis números separados por vírgula, espaço ou ponto e vírgula, por exemplo `8, 2, 10, 5, 1, 7`. Também aceita seis dígitos juntos, como `821517`.

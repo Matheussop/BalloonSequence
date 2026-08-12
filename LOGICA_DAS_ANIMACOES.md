@@ -43,21 +43,25 @@ Cada balão possui sua própria animação de subida e sua própria animação d
 
 ## 3. Elementos que participam da animação
 
-Há quatro grupos principais de elementos:
+Há cinco grupos principais de elementos:
 
 ### 3.1. `Pressable`
 
-É a área que recebe o toque. Sua posição corresponde à posição inicial do balão.
+É a única área que recebe o toque. Sua posição corresponde à posição inicial do balão e cobre somente o corpo visível: `72 × 74` no azul e `72 × 80` no amarelo. O fio e os componentes SVG internos usam `pointerEvents="none"` e não recebem eventos.
 
 ### 3.2. `Animated.View` do balão
 
-Contém o corpo, o brilho, a estrela, o nó e o barbante. Esse grupo inteiro é transformado durante a subida. Como todos os elementos estão dentro do mesmo `Animated.View`, eles se deslocam, giram e mudam de escala como uma única unidade.
+Contém um componente SVG azul ou amarelo com corpo, brilho, nó e logotipo. Os `viewBox` foram recortados para os limites da arte visível (`117 16 112 115` no azul e `98 22 102 112` no amarelo). O `Animated.View` mede `72 × 74` no azul ou `72 × 80` no amarelo, sem offsets negativos. O corpo se desloca, gira, muda de escala e desaparece durante a subida.
 
-### 3.3. `Animated.View` da ficha
+### 3.3. Camada animada do fio
+
+Cada balão renderiza uma camada SVG do tamanho do palco com um único `Path` Bézier. `getStringPath` liga o nó ao ponto-base `(102, 400)`, na ponta da mão direita da capivara. Cada fio recebe uma variação horizontal inferior a quatro pontos para formar um feixe visível. A camada fica atrás dos outros elementos e sua opacidade deriva de `flight`, desaparecendo durante os primeiros 22% da subida.
+
+### 3.4. `Animated.View` da ficha
 
 Existe desde a primeira renderização, mas começa invisível e com escala zero. Ela não é criada depois do toque; ela já está posicionada abaixo do balão e apenas passa a ser visível.
 
-### 3.4. Componente principal `App`
+### 3.5. Componente principal `App`
 
 Controla o progresso global da rodada, identifica quando todos os balões foram coletados e inicia a ordenação coletiva.
 
@@ -708,11 +712,17 @@ As distâncias são diferentes, mas a duração é compartilhada. Por isso, fich
 
 ## 31. Detecção do fim da fase individual
 
-Quando o `Animated.parallel` termina, ele chama:
+Quando o `Animated.parallel` termina normalmente, ele chama:
 
 ```ts
-onPop(item.id)
+]).start(({finished}) => {
+  if (finished) {
+    onPop(item.id);
+  }
+});
 ```
+
+O sinalizador `finished` diferencia uma conclusão real de um cancelamento provocado pelo reset. Uma animação interrompida pode executar seu callback com `finished: false`; nesse caso, a rodada não deve registrar o balão.
 
 No componente principal, `onPop` aponta para `handlePop`.
 
@@ -723,11 +733,9 @@ const handlePop = useCallback((id: number) => {
       return current;
     }
 
-    const next = [...current, id];
-    // ...
-    return next;
+    return [...current, id];
   });
-}, [ordered]);
+}, []);
 ```
 
 A forma funcional `setCollected(current => ...)` é importante porque vários balões podem estar animando ao mesmo tempo.
@@ -790,21 +798,34 @@ A ficha não fica dentro dessa condição, então permanece renderizada depois q
 
 ## 35. Disparo da ordenação final
 
-Depois de adicionar um identificador, o código verifica:
+O fim da fase individual é representado pelo estado derivado:
 
 ```ts
-if (next.length === BALLOONS.length) {
-  Animated.timing(ordered, {
+const isComplete = collected.length === BALLOONS.length;
+```
+
+Um efeito observa esse estado e controla o ciclo de vida da animação final:
+
+```ts
+useEffect(() => {
+  if (!isComplete) {
+    return;
+  }
+
+  const orderingAnimation = Animated.timing(ordered, {
     toValue: 1,
     delay: 350,
     duration: 900,
     easing: Easing.inOut(Easing.cubic),
     useNativeDriver: true,
-  }).start();
-}
+  });
+
+  orderingAnimation.start();
+  return () => orderingAnimation.stop();
+}, [isComplete, ordered]);
 ```
 
-O uso de `BALLOONS.length` mantém a condição lógica alinhada à quantidade real configurada.
+O uso de `BALLOONS.length` mantém a condição lógica alinhada à quantidade real configurada. Separar o efeito do atualizador de `setCollected` também é essencial: o React pode executar esse atualizador durante seu processamento interno, e iniciar uma animação nele causaria uma atualização nativa em uma fase na qual efeitos não são permitidos.
 
 Na configuração atual, a ordenação começa quando os seis balões foram coletados.
 
@@ -991,9 +1012,19 @@ Sem mudar a chave, os componentes manteriam seus refs:
 
 Na implementação atual, o botão pode ser pressionado mesmo enquanto balões estão subindo.
 
-O incremento de `round` desmonta os componentes antigos e monta novos. Isso remove as instâncias visuais antigas e seus callbacks deixam de ser relevantes para a nova árvore.
+O incremento de `round` desmonta os componentes antigos e monta novos. Durante essa desmontagem, o cleanup de cada balão interrompe os valores animados:
 
-Entretanto, para uma implementação de produção mais rigorosa, pode ser útil armazenar as animações retornadas por `Animated.parallel` e chamar `stop()` antes do reset. Isso torna explícito o cancelamento e evita callbacks tardios caso a arquitetura seja alterada.
+```ts
+useEffect(
+  () => () => {
+    flight.stopAnimation();
+    reveal.stopAnimation();
+  },
+  [flight, reveal],
+);
+```
+
+Como o callback do grupo verifica `finished`, o cancelamento não chama `handlePop` e não altera `collected` depois do reset.
 
 ## 46. Input numérico e relação com animação
 
@@ -1206,11 +1237,15 @@ Uma evolução importante seria respeitar a preferência do sistema por moviment
 
 ### Reset enquanto a ordenação está aguardando o delay
 
-O reset chama `ordered.stopAnimation()` antes de `setValue(0)`. Isso cancela o `timing`, inclusive durante seu delay, antes de devolver o progresso ao início.
+O reset chama `ordered.stopAnimation()` antes de `setValue(0)`. A mudança de `isComplete` também executa o cleanup do efeito responsável pela ordenação. Isso cancela o `timing`, inclusive durante seu delay, antes de devolver o progresso ao início.
 
 ### Reset enquanto a ordenação está ativa
 
 Também é tratado por `ordered.stopAnimation()`, evitando que a animação antiga volte a escrever no valor depois do reset.
+
+### Reset enquanto balões ainda estão subindo
+
+A mudança de `round` desmonta as instâncias antigas. Seus cleanups interrompem `flight` e `reveal`, e o callback do grupo ignora a conclusão porque recebe `finished: false`.
 
 ### Alteração do input durante a rodada
 
@@ -1230,30 +1265,23 @@ const reset = () => {
 };
 ```
 
-Se também for necessário cancelar animações individuais, cada componente precisaria guardar a instância retornada por `Animated.parallel` e pará-la durante o cleanup ou quando a rodada mudar.
+Além desse reset global, cada componente cancela seus valores animados no cleanup de desmontagem.
 
 ## 60. Cleanup de animações individuais
 
-Uma implementação futura poderia usar `useEffect`:
+O cleanup implementado usa os próprios valores animados:
 
 ```ts
-const animationRef = useRef<Animated.CompositeAnimation | null>(null);
-
-useEffect(() => {
-  return () => {
-    animationRef.current?.stop();
-  };
-}, []);
+useEffect(
+  () => () => {
+    flight.stopAnimation();
+    reveal.stopAnimation();
+  },
+  [flight, reveal],
+);
 ```
 
-No toque:
-
-```ts
-animationRef.current = Animated.parallel([...]);
-animationRef.current.start(...);
-```
-
-Isso torna o ciclo de vida explícito quando o componente é desmontado por uma mudança de rodada.
+Isso torna o ciclo de vida explícito quando o componente é desmontado por uma mudança de rodada. A verificação de `finished` no callback completa a proteção contra atualizações tardias.
 
 ## 61. Ajuste seguro da velocidade da subida
 
@@ -1487,8 +1515,8 @@ O fluxo interno completo de uma rodada é:
 24. A nova renderização remove o balão concluído.
 25. A ficha permanece montada e visível.
 26. O processo se repete para os demais balões.
-27. Quando `next.length === BALLOONS.length`, a animação global é criada.
-28. A ordenação aguarda 350 ms.
+27. Quando `collected.length === BALLOONS.length`, `isComplete` passa a verdadeiro.
+28. O `useEffect` cria a animação global, que aguarda 350 ms.
 29. `ordered` começa a sair de 0.
 30. Cada ficha interpola sua translação usando o índice correspondente à ordem digitada.
 31. Todas seguem a curva cúbica de entrada e saída.
@@ -1496,8 +1524,8 @@ O fluxo interno completo de uma rodada é:
 33. As fichas terminam na linha `FINAL_TOP`, na mesma ordem do input.
 34. Ao reiniciar, a animação global é interrompida e `ordered` volta a zero.
 35. `collected` é esvaziado e `round` muda as chaves.
-36. As instâncias antigas são desmontadas.
-37. Novos `flight`, `reveal` e `tapped` são criados.
+36. As instâncias antigas são desmontadas e seus cleanups cancelam `flight` e `reveal`.
+37. Callbacks cancelados recebem `finished: false` e não chamam `handlePop`; novos `flight`, `reveal` e `tapped` são criados.
 38. O input é liberado, preservando os valores atuais para repetição ou edição.
 39. A próxima rodada começa no estado inicial.
 

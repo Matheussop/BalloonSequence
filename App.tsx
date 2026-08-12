@@ -1,4 +1,4 @@
-import React, {useCallback, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   Animated,
   Easing,
@@ -10,6 +10,10 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import BlueBalloon from './assets/blue_ballon.svg';
+import Capivara from './assets/capivara.svg';
+import YellowBalloon from './assets/yellow_ballon.svg';
+import Svg, {Path} from 'react-native-svg';
 
 const BALLOON_SIZE = 72;
 const TOKEN_SIZE = 48;
@@ -17,6 +21,10 @@ const FINAL_TOP = 28;
 const FINAL_LEFT = 4;
 const FINAL_GAP = 52;
 const DEFAULT_NUMBERS = [1, 2, 3, 4, 5, 6];
+const STAGE_WIDTH = 340;
+const STAGE_HEIGHT = 440;
+const CAPYBARA_HAND_X = 102;
+const CAPYBARA_HAND_Y = 400;
 
 type BalloonData = {
   id: number;
@@ -60,6 +68,21 @@ type BalloonProps = {
   onPop: (id: number) => void;
 };
 
+export function getStringPath(item: BalloonData): string {
+  const isBlue = item.color === '#5734F5';
+  const knotX = item.x + (isBlue ? 12 : 16);
+  const knotY = item.y + (isBlue ? 71 : 80);
+  const strandOffset = (item.id - (BALLOONS.length + 1) / 2) * 7;
+  const handX = CAPYBARA_HAND_X + (item.id - 1) * 0.7;
+  const handY = CAPYBARA_HAND_Y + (item.id % 2) * 1.5;
+  const firstControlX = handX + strandOffset;
+  const firstControlY = handY - 92;
+  const secondControlX = knotX + (handX - knotX) * 0.16;
+  const secondControlY = knotY + 54;
+
+  return `M ${handX} ${handY} C ${firstControlX} ${firstControlY} ${secondControlX} ${secondControlY} ${knotX} ${knotY}`;
+}
+
 function Balloon({
   item,
   value,
@@ -70,9 +93,18 @@ function Balloon({
   onStart,
   onPop,
 }: BalloonProps) {
+  const isBlue = item.color === '#5734F5';
   const flight = useRef(new Animated.Value(0)).current;
   const reveal = useRef(new Animated.Value(0)).current;
   const tapped = useRef(false);
+
+  useEffect(
+    () => () => {
+      flight.stopAnimation();
+      reveal.stopAnimation();
+    },
+    [flight, reveal],
+  );
 
   const pop = () => {
     if (tapped.current) {
@@ -96,13 +128,40 @@ function Balloon({
         mass: 0.65,
         useNativeDriver: true,
       }),
-    ]).start(() => onPop(item.id));
+    ]).start(({finished}) => {
+      if (finished) {
+        onPop(item.id);
+      }
+    });
   };
 
   const tokenX = FINAL_LEFT + finalIndex * FINAL_GAP;
+  const stringPath = getStringPath(item);
 
   return (
     <>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.stringLayer,
+          {
+            opacity: flight.interpolate({
+              inputRange: [0, 0.22, 1],
+              outputRange: [1, 0, 0],
+            }),
+          },
+        ]}>
+        <Svg height={STAGE_HEIGHT} width={STAGE_WIDTH}>
+          <Path
+            d={stringPath}
+            fill="none"
+            stroke="#B4B9C1"
+            strokeLinecap="round"
+            strokeWidth={1.5}
+          />
+        </Svg>
+      </Animated.View>
+
       <Animated.View
         pointerEvents="none"
         style={[
@@ -137,61 +196,66 @@ function Balloon({
           accessibilityRole="button"
           disabled={disabled}
           onPress={pop}
-          style={[styles.balloonHitArea, {left: item.x, top: item.y}]}>
+          style={[
+            styles.balloonHitArea,
+            isBlue ? styles.blueHitArea : styles.yellowHitArea,
+            {left: item.x, top: item.y},
+          ]}>
           <Animated.View
-            style={{
-              opacity: flight.interpolate({
-                inputRange: [0, 0.75, 1],
-                outputRange: [1, 1, 0],
-              }),
-              transform: [
-                {
-                  translateY: flight.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, -480],
-                  }),
-                },
-                {
-                  translateX: flight.interpolate({
-                    inputRange: [0, 0.35, 0.7, 1],
-                    outputRange: [0, 9, -7, 4],
-                  }),
-                },
-                {
-                  rotate: flight.interpolate({
-                    inputRange: [0, 0.5, 1],
-                    outputRange: ['0deg', '7deg', '-5deg'],
-                  }),
-                },
-                {
-                  scale: flight.interpolate({
-                    inputRange: [0, 0.25, 1],
-                    outputRange: [1, 1.08, 0.92],
-                  }),
-                },
-              ],
-            }}>
-            <View style={[styles.balloon, {backgroundColor: item.color}]}>
-              <Text
-                style={[
-                  styles.balloonMark,
-                  item.color === '#5734F5'
-                    ? styles.balloonMarkYellow
-                    : styles.balloonMarkPurple,
-                ]}>
-                ★
-              </Text>
-              <View
-                style={[
-                  styles.shine,
-                  item.color === '#5734F5'
-                    ? styles.shineSubtle
-                    : styles.shineStrong,
-                ]}
+            pointerEvents="none"
+            style={[
+              styles.balloonArtwork,
+              isBlue
+                ? styles.blueArtworkContainer
+                : styles.yellowArtworkContainer,
+              {
+                opacity: flight.interpolate({
+                  inputRange: [0, 0.75, 1],
+                  outputRange: [1, 1, 0],
+                }),
+                transform: [
+                  {
+                    translateY: flight.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -480],
+                    }),
+                  },
+                  {
+                    translateX: flight.interpolate({
+                      inputRange: [0, 0.35, 0.7, 1],
+                      outputRange: [0, 9, -7, 4],
+                    }),
+                  },
+                  {
+                    rotate: flight.interpolate({
+                      inputRange: [0, 0.5, 1],
+                      outputRange: ['0deg', '7deg', '-5deg'],
+                    }),
+                  },
+                  {
+                    scale: flight.interpolate({
+                      inputRange: [0, 0.25, 1],
+                      outputRange: [1, 1.08, 0.92],
+                    }),
+                  },
+                ],
+              },
+            ]}>
+            {isBlue ? (
+              <BlueBalloon
+                accessibilityLabel="Balão azul"
+                height={74}
+                pointerEvents="none"
+                width={BALLOON_SIZE}
               />
-            </View>
-            <View style={[styles.knot, {borderTopColor: item.color}]} />
-            <View style={styles.string} />
+            ) : (
+              <YellowBalloon
+                accessibilityLabel="Balão amarelo"
+                height={80}
+                pointerEvents="none"
+                width={BALLOON_SIZE}
+              />
+            )}
           </Animated.View>
         </Pressable>
       )}
@@ -210,26 +274,34 @@ function App(): React.JSX.Element {
   const parsedInput = parseNumberInput(inputValue);
   const inputIsValid = parsedInput !== null;
 
+  useEffect(() => {
+    if (!isComplete) {
+      return;
+    }
+
+    const orderingAnimation = Animated.timing(ordered, {
+      toValue: 1,
+      delay: 350,
+      duration: 900,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: true,
+    });
+
+    orderingAnimation.start();
+
+    return () => orderingAnimation.stop();
+  }, [isComplete, ordered]);
+
   const handlePop = useCallback(
     (id: number) => {
       setCollected(current => {
         if (current.includes(id)) {
           return current;
         }
-        const next = [...current, id];
-        if (next.length === BALLOONS.length) {
-          Animated.timing(ordered, {
-            toValue: 1,
-            delay: 350,
-            duration: 900,
-            easing: Easing.inOut(Easing.cubic),
-            useNativeDriver: true,
-          }).start();
-        }
-        return next;
+        return [...current, id];
       });
     },
-    [ordered],
+    [],
   );
 
   const reset = () => {
@@ -303,8 +375,11 @@ function App(): React.JSX.Element {
             />
           ))}
           <View style={styles.mascotWrap}>
-            <Text style={styles.mascot}>🧙‍♂️</Text>
-            <View style={styles.mascotShadow} />
+            <Capivara
+              accessibilityLabel="Capivara segurando os fios"
+              height={118}
+              width={118}
+            />
           </View>
         </View>
 
@@ -365,28 +440,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   inputFeedbackInvalid: {color: '#D93757'},
-  stage: {width: 340, height: 440, marginTop: 10, overflow: 'visible' },
-  balloonHitArea: {position: 'absolute', width: BALLOON_SIZE, height: 108, alignItems: 'center', zIndex: 5},
-  balloon: {
-    width: BALLOON_SIZE,
-    height: BALLOON_SIZE + 10,
-    borderRadius: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#271B57',
-    shadowOpacity: 0.22,
-    shadowRadius: 5,
-    shadowOffset: {width: 0, height: 4},
-    elevation: 5,
+  stage: {width: STAGE_WIDTH, height: STAGE_HEIGHT, marginTop: 10, overflow: 'visible' },
+  stringLayer: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: STAGE_WIDTH,
+    height: STAGE_HEIGHT,
+    zIndex: 1,
   },
-  balloonMark: {fontSize: 27, fontWeight: '900'},
-  balloonMarkYellow: {color: '#DDFB2A'},
-  balloonMarkPurple: {color: '#5734F5'},
-  shine: {position: 'absolute', width: 12, height: 20, borderRadius: 8, top: 13, left: 14, backgroundColor: '#FFFFFF', transform: [{rotate: '28deg'}]},
-  shineSubtle: {opacity: 0.3},
-  shineStrong: {opacity: 0.55},
-  knot: {width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 11, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -2},
-  string: {width: 1, height: 23, backgroundColor: '#A7A2AE'},
+  balloonHitArea: {
+    position: 'absolute',
+    width: BALLOON_SIZE,
+    alignItems: 'center',
+    zIndex: 5,
+  },
+  blueHitArea: {height: 74},
+  yellowHitArea: {height: 80},
+  balloonArtwork: {
+    width: BALLOON_SIZE,
+    overflow: 'visible',
+  },
+  blueArtworkContainer: {height: 74},
+  yellowArtworkContainer: {height: 80},
   token: {
     position: 'absolute',
     width: TOKEN_SIZE,
@@ -405,9 +481,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   tokenText: {color: '#4930DB', fontSize: 21, fontWeight: '900'},
-  mascotWrap: {position: 'absolute', left: 12, bottom: 4, alignItems: 'center'},
-  mascot: {fontSize: 73, transform: [{scaleX: -1}]},
-  mascotShadow: {width: 62, height: 9, marginTop: -10, borderRadius: 10, backgroundColor: '#E6E2EA'},
+  mascotWrap: {position: 'absolute', left: 0, bottom: 0, zIndex: 6},
   button: {width: '100%', height: 52, marginTop: 'auto', marginBottom: 18, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#DDFB2A'},
   buttonPressed: {transform: [{scale: 0.98}], opacity: 0.84},
   buttonText: {color: '#2C215C', fontSize: 14, fontWeight: '900', letterSpacing: 0.5},
