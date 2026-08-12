@@ -47,15 +47,15 @@ Há cinco grupos principais de elementos:
 
 ### 3.1. `Pressable`
 
-É a única área que recebe o toque. Sua posição corresponde à posição inicial do balão e cobre somente o corpo visível: `72 × 74` no azul e `72 × 80` no amarelo. O fio e as regiões transparentes pertencem à imagem WebP interna, cujo contêiner usa `pointerEvents="none"`.
+É a única área que recebe o toque. Sua posição corresponde à posição inicial do balão e cobre somente o corpo visível: `72 × 74` no azul e `72 × 80` no amarelo. A camada vetorial do fio e a imagem WebP usam `pointerEvents="none"`.
 
 ### 3.2. `Animated.View` do balão
 
-Contém um `Image` com o WebP azul ou amarelo. A arte inclui corpo, brilho, nó, logotipo e fio. O `Animated.View` pode ultrapassar a área de toque para acomodar todo o canvas transparente; suas dimensões e offsets ficam no objeto `ARTWORK`. A imagem inteira se desloca, gira, muda de escala e desaparece durante a subida.
+Contém um `Image` com o WebP azul ou amarelo. A arte inclui corpo, brilho, nó e logotipo, mas não contém o fio. O `Animated.View` mede `72 × 74` no azul ou `72 × 80` no amarelo. A imagem inteira se desloca, gira, muda de escala e desaparece durante a subida.
 
-### 3.3. Fio incorporado ao WebP
+### 3.3. Camada vetorial do fio
 
-Não existe mais uma camada SVG nem um `Path` calculado em tempo de execução. O fio já vem rasterizado no mesmo WebP do respectivo balão. Por isso, posicionamento, curvatura e ponto final do fio devem estar corretos no arquivo exportado; durante a animação, ele acompanha exatamente as mesmas transformações e opacidade do corpo.
+Cada balão renderiza uma camada SVG do tamanho do palco com um `Path` Bézier calculado por `getStringPath`. A curva liga o nó ao ponto-base próximo da mão da capivara e recebe uma pequena variação por ID para formar um feixe. Sua opacidade deriva de `flight` e desaparece durante os primeiros 22% da subida, antes que a separação entre o nó animado e o caminho estático fique perceptível.
 
 ### 3.4. `Animated.View` da ficha
 

@@ -11,9 +11,9 @@ Protótipo em React Native **0.79.2** :
 - o campo é bloqueado durante a rodada para os valores não mudarem no meio da animação;
 - o botão inferior reinicia a experiência e libera o campo para edição.
 
-A animação usa `Animated`, `Easing` e `Pressable`. Cada arte de balão, incluindo seu fio, vem de `assets/blue_balloon.webp` ou `assets/yellow_balloon.webp` e é renderizada pelo componente `Image` do React Native.
+A animação usa `Animated`, `Easing` e `Pressable`. O corpo de cada balão vem de `assets/blue_balloon.webp` ou `assets/yellow_balloon.webp` e é renderizado pelo componente `Image` do React Native.
 
-A capivara continua usando `assets/capivara.svg`. Para substituir uma arte, sobrescreva o WebP correspondente mantendo o nome e o fundo transparente.
+A capivara continua usando `assets/capivara.svg`. Os fios são caminhos Bézier vetoriais gerados dinamicamente e convergem na mão da personagem. Para substituir um balão, sobrescreva o WebP correspondente mantendo o nome e o fundo transparente; a imagem não deve conter o fio.
 
 ## Executar
 

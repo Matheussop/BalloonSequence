@@ -35,7 +35,7 @@ Contém a interface e coordena o estado global da experiência:
 
 ### `src/components/Balloon.tsx`
 
-Encapsula um balão completo: área de toque, imagem WebP com fio, ficha, valores animados `flight` e `reveal`, além do cleanup das animações individuais.
+Encapsula um balão completo: área de toque, corpo em WebP, fio vetorial, ficha, valores animados `flight` e `reveal`, além do cleanup das animações individuais.
 
 ### `src/config/balloons.ts`
 
@@ -81,14 +81,14 @@ A constante `BALLOONS` possui seis itens e determina a composição visual inici
 
 ### Área de toque
 
-O `Pressable` acompanha somente o corpo visível, não o fio nem toda a imagem WebP. Ambos possuem 72 pontos de largura, mas usam alturas específicas:
+O `Pressable` acompanha somente o corpo visível, não o fio vetorial. Ambos possuem 72 pontos de largura, mas usam alturas específicas:
 
 ```ts
 bodyHeight: 74; // azul
 bodyHeight: 80; // amarelo
 ```
 
-Essas medidas refletem somente o corpo visível. O contêiner animado que ultrapassa essa área possui `pointerEvents="none"`. Assim, somente o `Pressable` compacto recebe o toque: o fio e as regiões transparentes do WebP não ampliam nem bloqueiam a área interativa.
+Essas medidas refletem somente o corpo visível. A camada vetorial dos fios e a imagem usam `pointerEvents="none"`. Assim, somente o `Pressable` compacto recebe o toque: o fio e eventuais regiões transparentes do WebP não ampliam nem bloqueiam a área interativa.
 
 ## 5. Componente `Balloon`
 
@@ -135,7 +135,6 @@ Cada WebP definitivo deve possuir fundo transparente e conter:
 - logotipo central;
 - brilho semitransparente;
 - nó triangular.
-- fio completo.
 
 O componente escolhe o asset e suas dimensões por meio do objeto `ARTWORK`:
 
@@ -145,11 +144,17 @@ const artwork = ARTWORK[item.variant];
 <Image source={artwork.source} resizeMode="contain" style={styles.image} />;
 ```
 
-O WebP fica dentro do mesmo `Animated.View` que recebe `translateX`, `translateY`, rotação, escala e opacidade. Como o fio faz parte da imagem, ele acompanha a subida e o fade do balão automaticamente. `width`, `height`, `left` e `top` em `ARTWORK` permitem alinhar o canvas transparente com a coordenada do corpo.
+O WebP fica dentro do `Animated.View` que recebe `translateX`, `translateY`, rotação, escala e opacidade. O objeto `ARTWORK` centraliza o asset e as dimensões do corpo para cada variante.
 
 A ficha é um círculo amarelo com borda, sombra e texto roxo. A capivara é renderizada em `118 × 118`, sobre os fios, no canto inferior esquerdo do palco.
 
-Os WebPs presentes inicialmente são placeholders. Eles devem ser sobrescritos pelos arquivos finais com fio, mantendo exatamente os nomes `blue_balloon.webp` e `yellow_balloon.webp`. Depois da substituição, os valores de `ARTWORK` podem ser ajustados caso o canvas exportado tenha outras proporções.
+Os WebPs podem ser sobrescritos mantendo exatamente os nomes `blue_balloon.webp` e `yellow_balloon.webp`. As imagens devem conter somente o balão, sem fio, porque os fios são desenhados separadamente.
+
+### Fios vetoriais
+
+Cada instância de `Balloon` chama `getStringPath(item)`. A função calcula o nó do balão, o ponto próximo à mão da capivara e dois controles de uma curva Bézier cúbica. Uma pequena variação por ID forma um feixe, evitando sobreposição total.
+
+O caminho é desenhado por `Path` dentro de uma camada `Svg` do tamanho do palco. Essa camada usa `pointerEvents="none"` e fica atrás das fichas, dos corpos e da capivara. O mesmo valor `flight` reduz sua opacidade de 1 para 0 durante os primeiros 22% da subida.
 
 ## 7. Entrada e validação dos números
 

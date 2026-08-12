@@ -33,3 +33,20 @@ export const BALLOONS: BalloonData[] = [
 
 export const BALLOON_COUNT = BALLOONS.length;
 export const DEFAULT_NUMBERS = [1, 2, 3, 4, 5, 6];
+
+const CAPYBARA_HAND = {x: 102, y: 400} as const;
+
+export function getStringPath(balloon: BalloonData): string {
+  const isBlue = balloon.variant === 'blue';
+  const knotX = balloon.x + (isBlue ? 12 : 16);
+  const knotY = balloon.y + (isBlue ? 71 : 80);
+  const strandOffset = (balloon.id - (BALLOON_COUNT + 1) / 2) * 7;
+  const handX = CAPYBARA_HAND.x + (balloon.id - 1) * 0.7;
+  const handY = CAPYBARA_HAND.y + (balloon.id % 2) * 1.5;
+  const firstControlX = handX + strandOffset;
+  const firstControlY = handY - 92;
+  const secondControlX = knotX + (handX - knotX) * 0.16;
+  const secondControlY = knotY + 54;
+
+  return `M ${handX} ${handY} C ${firstControlX} ${firstControlY} ${secondControlX} ${secondControlY} ${knotX} ${knotY}`;
+}
