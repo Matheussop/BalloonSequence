@@ -1,14 +1,17 @@
 import React, {useEffect, useRef} from 'react';
-import {Animated, Easing, Pressable, StyleSheet, Text} from 'react-native';
-import Svg, {Path} from 'react-native-svg';
-import BlueBalloon from '../../assets/blue_ballon.svg';
-import YellowBalloon from '../../assets/yellow_ballon.svg';
+import {
+  Animated,
+  Easing,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+} from 'react-native';
+import type {ImageSourcePropType} from 'react-native';
 import {
   BALLOON_SIZE,
   BalloonData,
   FINAL_ROW,
-  getStringPath,
-  STAGE,
   TOKEN_CENTER_OFFSET,
   TOKEN_SIZE,
 } from '../config/balloons';
@@ -24,7 +27,34 @@ type Props = {
   onPop: (id: number) => void;
 };
 
-const ARTWORK_HEIGHT = {blue: 74, yellow: 80} as const;
+type ArtworkConfig = {
+  source: ImageSourcePropType;
+  bodyHeight: number;
+  width: number;
+  height: number;
+  left: number;
+  top: number;
+};
+
+const ARTWORK: Record<BalloonData['variant'], ArtworkConfig> = {
+  blue: {
+    source: require('../../assets/blue_balloon.webp'),
+    bodyHeight: 74,
+    width: 162,
+    height: 182,
+    left: -76,
+    top: -11,
+  },
+  yellow: {
+    source: require('../../assets/yellow_balloon.webp'),
+    bodyHeight: 80,
+    width: 162,
+    height: 236,
+    left: -74,
+    top: -17,
+  },
+};
+
 const TOKEN_TOP_OFFSET = 8;
 
 export function Balloon({
@@ -40,7 +70,7 @@ export function Balloon({
   const flight = useRef(new Animated.Value(0)).current;
   const reveal = useRef(new Animated.Value(0)).current;
   const tapped = useRef(false);
-  const artworkHeight = ARTWORK_HEIGHT[item.variant];
+  const artwork = ARTWORK[item.variant];
 
   useEffect(
     () => () => {
@@ -81,32 +111,9 @@ export function Balloon({
   };
 
   const tokenX = FINAL_ROW.left + finalIndex * FINAL_ROW.gap;
-  const BalloonArtwork = item.variant === 'blue' ? BlueBalloon : YellowBalloon;
 
   return (
     <>
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.stringLayer,
-          {
-            opacity: flight.interpolate({
-              inputRange: [0, 0.22, 1],
-              outputRange: [1, 0, 0],
-            }),
-          },
-        ]}>
-        <Svg height={STAGE.height} width={STAGE.width}>
-          <Path
-            d={getStringPath(item)}
-            fill="none"
-            stroke="#B4B9C1"
-            strokeLinecap="round"
-            strokeWidth={1.5}
-          />
-        </Svg>
-      </Animated.View>
-
       <Animated.View
         pointerEvents="none"
         style={[
@@ -135,6 +142,57 @@ export function Balloon({
         <Text style={styles.tokenText}>{value}</Text>
       </Animated.View>
 
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.artwork,
+          {
+            width: artwork.width,
+            height: artwork.height,
+            left: item.x + artwork.left,
+            top: item.y + artwork.top,
+            opacity: flight.interpolate({
+              inputRange: [0, 0.75, 1],
+              outputRange: [1, 1, 0],
+            }),
+            transform: [
+              {
+                translateY: flight.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, -480],
+                }),
+              },
+              {
+                translateX: flight.interpolate({
+                  inputRange: [0, 0.35, 0.7, 1],
+                  outputRange: [0, 9, -7, 4],
+                }),
+              },
+              {
+                rotate: flight.interpolate({
+                  inputRange: [0, 0.5, 1],
+                  outputRange: ['0deg', '7deg', '-5deg'],
+                }),
+              },
+              {
+                scale: flight.interpolate({
+                  inputRange: [0, 0.25, 1],
+                  outputRange: [1, 1.08, 0.92],
+                }),
+              },
+            ],
+          },
+        ]}>
+        <Image
+          accessibilityLabel={`Balão ${
+            item.variant === 'blue' ? 'azul' : 'amarelo'
+          } com fio`}
+          resizeMode="contain"
+          source={artwork.source}
+          style={styles.image}
+        />
+      </Animated.View>
+
       {!collected && (
         <Pressable
           accessibilityLabel={`Balão ${item.id}`}
@@ -143,70 +201,15 @@ export function Balloon({
           onPress={pop}
           style={[
             styles.hitArea,
-            {height: artworkHeight, left: item.x, top: item.y},
-          ]}>
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.artwork,
-              {
-                height: artworkHeight,
-                opacity: flight.interpolate({
-                  inputRange: [0, 0.75, 1],
-                  outputRange: [1, 1, 0],
-                }),
-                transform: [
-                  {
-                    translateY: flight.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, -480],
-                    }),
-                  },
-                  {
-                    translateX: flight.interpolate({
-                      inputRange: [0, 0.35, 0.7, 1],
-                      outputRange: [0, 9, -7, 4],
-                    }),
-                  },
-                  {
-                    rotate: flight.interpolate({
-                      inputRange: [0, 0.5, 1],
-                      outputRange: ['0deg', '7deg', '-5deg'],
-                    }),
-                  },
-                  {
-                    scale: flight.interpolate({
-                      inputRange: [0, 0.25, 1],
-                      outputRange: [1, 1.08, 0.92],
-                    }),
-                  },
-                ],
-              },
-            ]}>
-            <BalloonArtwork
-              accessibilityLabel={`Balão ${
-                item.variant === 'blue' ? 'azul' : 'amarelo'
-              }`}
-              height={artworkHeight}
-              pointerEvents="none"
-              width={BALLOON_SIZE}
-            />
-          </Animated.View>
-        </Pressable>
+            {height: artwork.bodyHeight, left: item.x, top: item.y},
+          ]}
+        />
       )}
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  stringLayer: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    width: STAGE.width,
-    height: STAGE.height,
-    zIndex: 1,
-  },
   hitArea: {
     position: 'absolute',
     width: BALLOON_SIZE,
@@ -214,8 +217,13 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
   artwork: {
-    width: BALLOON_SIZE,
+    position: 'absolute',
     overflow: 'visible',
+    zIndex: 1,
+  },
+  image: {
+    width: '100%',
+    height: '100%',
   },
   token: {
     position: 'absolute',

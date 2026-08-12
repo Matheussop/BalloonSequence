@@ -47,15 +47,15 @@ Há cinco grupos principais de elementos:
 
 ### 3.1. `Pressable`
 
-É a única área que recebe o toque. Sua posição corresponde à posição inicial do balão e cobre somente o corpo visível: `72 × 74` no azul e `72 × 80` no amarelo. O fio e os componentes SVG internos usam `pointerEvents="none"` e não recebem eventos.
+É a única área que recebe o toque. Sua posição corresponde à posição inicial do balão e cobre somente o corpo visível: `72 × 74` no azul e `72 × 80` no amarelo. O fio e as regiões transparentes pertencem à imagem WebP interna, cujo contêiner usa `pointerEvents="none"`.
 
 ### 3.2. `Animated.View` do balão
 
-Contém um componente SVG azul ou amarelo com corpo, brilho, nó e logotipo. Os `viewBox` foram recortados para os limites da arte visível (`117 16 112 115` no azul e `98 22 102 112` no amarelo). O `Animated.View` mede `72 × 74` no azul ou `72 × 80` no amarelo, sem offsets negativos. O corpo se desloca, gira, muda de escala e desaparece durante a subida.
+Contém um `Image` com o WebP azul ou amarelo. A arte inclui corpo, brilho, nó, logotipo e fio. O `Animated.View` pode ultrapassar a área de toque para acomodar todo o canvas transparente; suas dimensões e offsets ficam no objeto `ARTWORK`. A imagem inteira se desloca, gira, muda de escala e desaparece durante a subida.
 
-### 3.3. Camada animada do fio
+### 3.3. Fio incorporado ao WebP
 
-Cada balão renderiza uma camada SVG do tamanho do palco com um único `Path` Bézier. `getStringPath` liga o nó ao ponto-base `(102, 400)`, na ponta da mão direita da capivara. Cada fio recebe uma variação horizontal inferior a quatro pontos para formar um feixe visível. A camada fica atrás dos outros elementos e sua opacidade deriva de `flight`, desaparecendo durante os primeiros 22% da subida.
+Não existe mais uma camada SVG nem um `Path` calculado em tempo de execução. O fio já vem rasterizado no mesmo WebP do respectivo balão. Por isso, posicionamento, curvatura e ponto final do fio devem estar corretos no arquivo exportado; durante a animação, ele acompanha exatamente as mesmas transformações e opacidade do corpo.
 
 ### 3.4. `Animated.View` da ficha
 
@@ -78,7 +78,7 @@ const FINAL_ROW = {top: 28, left: 4, gap: 52};
 
 ### `BALLOON_SIZE`
 
-Define a largura-base do corpo do balão. A altura vem de `ARTWORK_HEIGHT`: 74 pontos para a variante azul e 80 para a amarela.
+Define a largura-base do corpo do balão. A altura interativa vem de `ARTWORK[item.variant].bodyHeight`: 74 pontos para a variante azul e 80 para a amarela.
 
 ### `TOKEN_SIZE`
 
@@ -161,11 +161,11 @@ Usar transformações em vez de alterar `top` e `left` durante a animação é i
 
 O sistema possui três tipos de valores de controle.
 
-| Valor | Escopo | Estado inicial | Estado final | Responsabilidade |
-|---|---|---:|---:|---|
-| `flight` | Um por balão | 0 | 1 | Subida e desaparecimento do balão |
-| `reveal` | Um por ficha | 0 | 1 | Entrada, escala e opacidade da ficha |
-| `ordered` | Um por rodada | 0 | 1 | Movimento coletivo para a fileira final |
+| Valor     | Escopo        | Estado inicial | Estado final | Responsabilidade                        |
+| --------- | ------------- | -------------: | -----------: | --------------------------------------- |
+| `flight`  | Um por balão  |              0 |            1 | Subida e desaparecimento do balão       |
+| `reveal`  | Um por ficha  |              0 |            1 | Entrada, escala e opacidade da ficha    |
+| `ordered` | Um por rodada |              0 |            1 | Movimento coletivo para a fileira final |
 
 Os valores não representam pixels diretamente. Eles funcionam como um **progresso normalizado**, em que:
 
@@ -316,7 +316,7 @@ Animated.timing(flight, {
   duration: 650,
   easing: Easing.out(Easing.cubic),
   useNativeDriver: true,
-})
+});
 ```
 
 ### `toValue: 1`
@@ -350,18 +350,18 @@ Isso transmite a sensação de que o balão recebe um impulso inicial e perde ve
 translateY: flight.interpolate({
   inputRange: [0, 1],
   outputRange: [0, -480],
-})
+});
 ```
 
 A conversão é linear entre os dois extremos:
 
 | `flight` | `translateY` aproximado |
-|---:|---:|
-| 0 | 0 px |
-| 0,25 | -120 px |
-| 0,50 | -240 px |
-| 0,75 | -360 px |
-| 1 | -480 px |
+| -------: | ----------------------: |
+|        0 |                    0 px |
+|     0,25 |                 -120 px |
+|     0,50 |                 -240 px |
+|     0,75 |                 -360 px |
+|        1 |                 -480 px |
 
 O sinal negativo move para cima. A distância de 480 é maior que a altura do palco, garantindo que o balão ultrapasse o limite superior.
 
@@ -373,17 +373,17 @@ Como `stage` usa `overflow: 'visible'`, a simples saída dos limites do palco n�
 translateX: flight.interpolate({
   inputRange: [0, 0.35, 0.7, 1],
   outputRange: [0, 9, -7, 4],
-})
+});
 ```
 
 Essa interpolação possui quatro pontos-chave:
 
-| Progresso | Deslocamento | Efeito |
-|---:|---:|---|
-| 0 | 0 px | posição original |
-| 0,35 | +9 px | movimento para a direita |
-| 0,70 | -7 px | cruzamento para a esquerda |
-| 1 | +4 px | pequena correção final |
+| Progresso | Deslocamento | Efeito                     |
+| --------: | -----------: | -------------------------- |
+|         0 |         0 px | posição original           |
+|      0,35 |        +9 px | movimento para a direita   |
+|      0,70 |        -7 px | cruzamento para a esquerda |
+|         1 |        +4 px | pequena correção final     |
 
 O movimento cria uma trajetória em “S”. A interpolação calcula automaticamente todos os valores entre cada par de pontos.
 
@@ -403,7 +403,7 @@ origem --/  \________
 rotate: flight.interpolate({
   inputRange: [0, 0.5, 1],
   outputRange: ['0deg', '7deg', '-5deg'],
-})
+});
 ```
 
 O balão começa sem rotação, inclina 7 graus em uma direção na metade do caminho e termina inclinado 5 graus na direção oposta.
@@ -416,7 +416,7 @@ A combinação entre `rotate` e `translateX` é o que faz a subida parecer orgâ
 scale: flight.interpolate({
   inputRange: [0, 0.25, 1],
   outputRange: [1, 1.08, 0.92],
-})
+});
 ```
 
 O balão:
@@ -433,7 +433,7 @@ O crescimento inicial funciona como antecipação visual. A redução final refo
 opacity: flight.interpolate({
   inputRange: [0, 0.75, 1],
   outputRange: [1, 1, 0],
-})
+});
 ```
 
 De 0 a 0,75, a opacidade permanece em 1. De 0,75 a 1, cai gradualmente até 0.
@@ -467,7 +467,7 @@ Animated.spring(reveal, {
   stiffness: 160,
   mass: 0.65,
   useNativeDriver: true,
-})
+});
 ```
 
 A spring simula um sistema físico.
@@ -571,13 +571,13 @@ ordem final   = [3, 2, 5, 1, 2, 5]
 ```
 
 | Balão | `sourceIndex` | Valor | `finalIndex` |
-|---:|---:|---:|---:|
-| 1 | 1 | 2 | 1 |
-| 2 | 2 | 5 | 2 |
-| 3 | 5 | 5 | 5 |
-| 4 | 4 | 2 | 4 |
-| 5 | 0 | 3 | 0 |
-| 6 | 3 | 1 | 3 |
+| ----: | ------------: | ----: | -----------: |
+|     1 |             1 |     2 |            1 |
+|     2 |             2 |     5 |            2 |
+|     3 |             5 |     5 |            5 |
+|     4 |             4 |     2 |            4 |
+|     5 |             0 |     3 |            0 |
+|     6 |             3 |     1 |            3 |
 
 Não existe `sort`, ranking numérico ou desempate. Valores repetidos continuam rastreáveis porque cada ocorrência conserva seu índice, mesmo quando duas fichas exibem o mesmo conteúdo.
 
@@ -592,13 +592,13 @@ const tokenX = FINAL_ROW.left + finalIndex * FINAL_ROW.gap;
 Com os valores atuais:
 
 | `finalIndex` | `tokenX` |
-|---:|---:|
-| 0 | 4 |
-| 1 | 56 |
-| 2 | 108 |
-| 3 | 160 |
-| 4 | 212 |
-| 5 | 264 |
+| -----------: | -------: |
+|            0 |        4 |
+|            1 |       56 |
+|            2 |      108 |
+|            3 |      160 |
+|            4 |      212 |
+|            5 |      264 |
 
 Essa tabela representa a coordenada horizontal final de cada ficha.
 
@@ -610,7 +610,7 @@ A interpolação é:
 translateX: ordered.interpolate({
   inputRange: [0, 1],
   outputRange: [0, tokenX - item.x - TOKEN_CENTER_OFFSET],
-})
+});
 ```
 
 O deslocamento final é a diferença entre destino e origem.
@@ -639,7 +639,7 @@ A interpolação é:
 translateY: ordered.interpolate({
   inputRange: [0, 1],
   outputRange: [0, FINAL_ROW.top - item.y - TOKEN_TOP_OFFSET],
-})
+});
 ```
 
 A origem vertical da ficha é:
@@ -700,7 +700,7 @@ Logo, quando `ordered` chega a 1, essa ficha se deslocou 55 pontos para a esquer
 `ordered` pertence ao componente `App` e é enviado para todos os componentes `Balloon`.
 
 ```tsx
-ordered={ordered}
+ordered = {ordered};
 ```
 
 Cada ficha observa o mesmo progresso, mas possui `outputRange` próprio porque sua origem e seu `finalIndex` são diferentes.
@@ -791,9 +791,9 @@ Mesmo que uma futura modificação provoque duas chamadas de `onPop`, o contador
 Enquanto `collected` é falso, o balão é renderizado:
 
 ```tsx
-{!collected && (
-  <Pressable>...</Pressable>
-)}
+{
+  !collected && <Pressable>...</Pressable>;
+}
 ```
 
 O balão primeiro chega a opacidade zero pelo `flight`. Somente depois que o grupo termina e `collected` é atualizado o `Pressable` é removido da árvore React.
@@ -852,7 +852,7 @@ Sem pausa, a última ficha começaria a sair da posição assim que terminasse d
 A ordenação usa:
 
 ```ts
-Easing.inOut(Easing.cubic)
+Easing.inOut(Easing.cubic);
 ```
 
 Essa curva possui três momentos:
@@ -896,7 +896,7 @@ Como a spring não possui duração fixa, o primeiro termo é variável.
 Todas as animações usam:
 
 ```ts
-useNativeDriver: true
+useNativeDriver: true;
 ```
 
 O native driver permite serializar o grafo da animação para o lado nativo. Depois de iniciado, o movimento de propriedades compatíveis não depende de uma mensagem JavaScript a cada quadro.
@@ -934,13 +934,13 @@ Essas propriedades permanecem estáticas e servem como base para as transformaç
 O balão usa:
 
 ```ts
-zIndex: 5
+zIndex: 5;
 ```
 
 A ficha usa:
 
 ```ts
-zIndex: 2
+zIndex: 2;
 ```
 
 Consequentemente, antes da saída, o balão fica visualmente acima da ficha. Isso reforça a impressão de que o número estava escondido atrás dele.
@@ -1081,7 +1081,9 @@ Atualmente `BALLOONS` contém seis itens. `BALLOON_COUNT` deriva desse array e �
 - quantidade de fichas finais.
 
 ```tsx
-<Text>{collected.length}/{BALLOON_COUNT}</Text>
+<Text>
+  {collected.length}/{BALLOON_COUNT}
+</Text>
 ```
 
 ## 49. Espaço disponível na fileira final
@@ -1112,9 +1114,7 @@ Uma fórmula dinâmica possível é:
 
 ```ts
 const gap =
-  BALLOON_COUNT > 1
-    ? (stageWidth - TOKEN_SIZE) / (BALLOON_COUNT - 1)
-    : 0;
+  BALLOON_COUNT > 1 ? (stageWidth - TOKEN_SIZE) / (BALLOON_COUNT - 1) : 0;
 ```
 
 ## 50. Relação entre duração e distância
@@ -1302,13 +1302,13 @@ Isso torna o ciclo de vida explícito quando o componente é desmontado por uma 
 Para deixar a subida mais rápida:
 
 ```ts
-duration: 450
+duration: 450;
 ```
 
 Para deixá-la mais lenta:
 
 ```ts
-duration: 900
+duration: 900;
 ```
 
 Ao alterar a duração, deve-se revisar o ponto do fade e o atraso da ficha. O fade usa uma porcentagem, então se adapta automaticamente; o delay de 180 ms é absoluto e pode ficar proporcionalmente muito longo ou curto.
@@ -1325,13 +1325,13 @@ const REVEAL_DELAY = FLIGHT_DURATION * 0.28;
 Para uma oscilação discreta, diminua os valores:
 
 ```ts
-outputRange: [0, 5, -4, 2]
+outputRange: [0, 5, -4, 2];
 ```
 
 Para uma oscilação mais forte:
 
 ```ts
-outputRange: [0, 16, -13, 7]
+outputRange: [0, 16, -13, 7];
 ```
 
 Valores muito grandes podem provocar sobreposição com balões vizinhos ou fazer o elemento sair lateralmente da área esperada.
@@ -1405,7 +1405,7 @@ Para criar um arco, seria possível adicionar outro deslocamento vertical interm
 translateY: ordered.interpolate({
   inputRange: [0, 0.5, 1],
   outputRange: [0, finalY - 30, finalY],
-})
+});
 ```
 
 Cada ficha subiria um pouco além do necessário e retornaria à linha final. O cálculo exato precisaria considerar que `outputRange` contém deslocamentos, e não coordenadas absolutas.

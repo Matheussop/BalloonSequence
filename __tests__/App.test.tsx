@@ -6,7 +6,6 @@ import React from 'react';
 import {Animated} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import App from '../App';
-import {getStringPath} from '../src/config/balloons';
 import {createShuffledOrder, parseNumberInput} from '../src/utils/sequence';
 
 test('renders correctly', async () => {
@@ -45,21 +44,6 @@ test('keeps a valid permutation when every typed value is equal', () => {
   const order = createShuffledOrder([5, 5, 5, 5, 5, 5], () => 0.5);
 
   expect([...order].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5]);
-});
-
-test('connects balloon strings to the capybara hand anchor', () => {
-  const bluePath = getStringPath({id: 1, x: 30, y: 154, variant: 'blue'});
-  const yellowPath = getStringPath({
-    id: 2,
-    x: 104,
-    y: 116,
-    variant: 'yellow',
-  });
-
-  expect(bluePath).toMatch(/^M 102 401\.5 C /);
-  expect(bluePath).toMatch(/ 42 225$/);
-  expect(yellowPath).toMatch(/^M 102\.7 400 C /);
-  expect(yellowPath).toMatch(/ 120 196$/);
 });
 
 test('can finish, reset and start another round without stale animation updates', async () => {

@@ -15,13 +15,13 @@ Os valores são definidos manualmente pelo campo de entrada. Números repetidos 
 - TypeScript;
 - API `Animated` do React Native;
 - `Pressable` para as interações de toque;
-- `react-native-svg` para renderizar as artes vetoriais;
-- `react-native-svg-transformer` para importar `.svg` como componente;
+- componente `Image` do React Native para os balões WebP;
+- `react-native-svg` e `react-native-svg-transformer` somente para a capivara;
 - Jest e React Test Renderer para os testes;
 - CocoaPods para a integração das dependências nativas no iOS;
 - Hermes como engine JavaScript.
 
-Não foi adicionada nenhuma biblioteca externa de animação. As bibliotecas de SVG cuidam somente da renderização das artes; toda a movimentação continua sendo feita pela API `Animated` do React Native.
+Não foi adicionada nenhuma biblioteca externa de animação. Toda a movimentação continua sendo feita pela API `Animated` do React Native.
 
 ## 3. Arquivos principais
 
@@ -35,11 +35,11 @@ Contém a interface e coordena o estado global da experiência:
 
 ### `src/components/Balloon.tsx`
 
-Encapsula um balão completo: área de toque, arte SVG, fio, ficha, valores animados `flight` e `reveal`, além do cleanup das animações individuais.
+Encapsula um balão completo: área de toque, imagem WebP com fio, ficha, valores animados `flight` e `reveal`, além do cleanup das animações individuais.
 
 ### `src/config/balloons.ts`
 
-Centraliza tipos, posições, dimensões compartilhadas, quantidade de balões, valores padrão e o cálculo Bézier de `getStringPath`.
+Centraliza tipos, posições, dimensões compartilhadas, quantidade de balões e valores padrão.
 
 ### `src/utils/sequence.ts`
 
@@ -81,13 +81,14 @@ A constante `BALLOONS` possui seis itens e determina a composição visual inici
 
 ### Área de toque
 
-O `Pressable` acompanha somente o corpo visível, não o fio nem o `viewBox` completo. Ambos possuem 72 pontos de largura, mas usam alturas específicas:
+O `Pressable` acompanha somente o corpo visível, não o fio nem toda a imagem WebP. Ambos possuem 72 pontos de largura, mas usam alturas específicas:
 
 ```ts
-const ARTWORK_HEIGHT = {blue: 74, yellow: 80} as const;
+bodyHeight: 74; // azul
+bodyHeight: 80; // amarelo
 ```
 
-Essas medidas refletem as proporções renderizadas de cada arte. A camada dos fios, o contêiner animado e o próprio componente SVG possuem `pointerEvents="none"`. Assim, somente o `Pressable` compacto recebe o toque: nenhuma região transparente do SVG, nenhuma curva e nenhum filho que ultrapasse o contêiner pode ampliar ou bloquear a área interativa.
+Essas medidas refletem somente o corpo visível. O contêiner animado que ultrapassa essa área possui `pointerEvents="none"`. Assim, somente o `Pressable` compacto recebe o toque: o fio e as regiões transparentes do WebP não ampliam nem bloqueiam a área interativa.
 
 ## 5. Componente `Balloon`
 
@@ -126,72 +127,29 @@ A referência `tapped` impede que o mesmo balão execute a animação mais de um
 
 ## 6. Desenho dos elementos
 
-As fichas usam componentes `View`, bordas, cores e sombras. Os corpos dos balões usam `blue_ballon.svg` e `yellow_ballon.svg`; a personagem usa `capivara.svg`.
+As fichas usam componentes `View`, bordas, cores e sombras. As imagens completas dos balões usam `blue_balloon.webp` e `yellow_balloon.webp`; a personagem usa `capivara.svg`.
 
-Cada SVG já contém:
+Cada WebP definitivo deve possuir fundo transparente e conter:
 
 - corpo oval colorido;
 - logotipo central;
 - brilho semitransparente;
 - nó triangular.
+- fio completo.
 
-Os fios originalmente exportados dentro dos SVGs foram removidos. Isso permite que todos terminem no mesmo ponto da capivara, independentemente da posição de cada balão.
-
-Os `viewBox` originais incluíam uma grande região vazia e elementos ocultos da exportação. Embora transparentes, essas regiões ainda pertenciam à árvore nativa do SVG e podiam participar do hit testing. Os arquivos foram recortados para conter somente a arte visível:
-
-```xml
-<!-- blue_ballon.svg -->
-viewBox="117 16 112 115"
-
-<!-- yellow_ballon.svg -->
-viewBox="98 22 102 112"
-```
-
-Também foram removidos dos dois arquivos os caminhos ocultos da ficha numerada e os fios estáticos. Com isso, o tamanho geométrico do componente passa a corresponder ao balão que o usuário enxerga, sem offsets negativos ou desenhos invisíveis ao redor.
-
-O componente escolhe a arte com base na variante configurada em `BALLOONS`:
+O componente escolhe o asset e suas dimensões por meio do objeto `ARTWORK`:
 
 ```tsx
-const BalloonArtwork = item.variant === 'blue' ? BlueBalloon : YellowBalloon;
+const artwork = ARTWORK[item.variant];
 
-<BalloonArtwork
-  height={ARTWORK_HEIGHT[item.variant]}
-  width={BALLOON_SIZE}
-  pointerEvents="none"
-/>
+<Image source={artwork.source} resizeMode="contain" style={styles.image} />;
 ```
 
-Os SVGs ficam dentro do mesmo `Animated.View` que antes continha o balão desenhado em código. Dessa forma, `translateX`, `translateY`, rotação, escala e opacidade continuam animando o corpo inteiro sem mudanças na lógica. O contêiner mede `72 × 74` para o azul e `72 × 80` para o amarelo, exatamente como a respectiva área de toque.
+O WebP fica dentro do mesmo `Animated.View` que recebe `translateX`, `translateY`, rotação, escala e opacidade. Como o fio faz parte da imagem, ele acompanha a subida e o fade do balão automaticamente. `width`, `height`, `left` e `top` em `ARTWORK` permitem alinhar o canvas transparente com a coordenada do corpo.
 
 A ficha é um círculo amarelo com borda, sombra e texto roxo. A capivara é renderizada em `118 × 118`, sobre os fios, no canto inferior esquerdo do palco.
 
-### Fios dinâmicos
-
-Cada instância de `Balloon` chama `getStringPath(item)`. A função calcula:
-
-- o ponto do nó, com offset diferente para azul e amarelo;
-- o ponto final comum próximo à mão da capivara;
-- dois pontos de controle para uma curva Bézier cúbica;
-- uma pequena variação por ID para os fios formarem um feixe, em vez de se sobreporem completamente.
-
-O caminho tem o formato:
-
-```text
-M mãoX mãoY C controle1X controle1Y controle2X controle2Y nóX nóY
-```
-
-Ele é desenhado por `Path` dentro de uma camada `Svg` do tamanho do palco. A camada possui `zIndex: 1`, as fichas usam `zIndex: 2`, os balões `zIndex: 5` e a capivara `zIndex: 6`. Assim os fios passam por trás de todos os elementos e parecem estar sendo segurados pela personagem.
-
-O mesmo `flight` do balão controla a opacidade do fio:
-
-```ts
-opacity: flight.interpolate({
-  inputRange: [0, 0.22, 1],
-  outputRange: [1, 0, 0],
-})
-```
-
-O fio desaparece nos primeiros 22% da subida, antes que a distância entre o nó animado e o caminho estático fique perceptível.
+Os WebPs presentes inicialmente são placeholders. Eles devem ser sobrescritos pelos arquivos finais com fio, mantendo exatamente os nomes `blue_balloon.webp` e `yellow_balloon.webp`. Depois da substituição, os valores de `ARTWORK` podem ser ajustados caso o canvas exportado tenha outras proporções.
 
 ## 7. Entrada e validação dos números
 
